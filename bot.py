@@ -8,6 +8,7 @@ import time
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from telegram import KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
@@ -51,6 +52,7 @@ rooms = {}
 
 # Flask приложение для HTTP API
 app = Flask(__name__)
+CORS(app)  # Разрешаем CORS запросы
 
 
 @app.route('/api/room/<room_id>', methods=['GET'])
