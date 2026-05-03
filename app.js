@@ -97,33 +97,7 @@ function startSoloGame() {
 }
 
 async function startMultiplayerGameFromUI() {
-    // Используем Railway API сервер
-    apiUrl = 'https://colors.up.railway.app';
-
-    // Генерируем player ID
-    playerId = Math.random().toString(36).substr(2, 9);
-
-    try {
-        // Создаем комнату через API
-        const response = await fetch(`${apiUrl}/api/create-room`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player_id: playerId })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            roomId = data.room_id;
-            const inviteUrl = data.invite_url;
-            showInviteScreen(inviteUrl);
-        } else {
-            alert('Ошибка создания комнаты: ' + (data.error || 'Неизвестная ошибка'));
-        }
-    } catch (error) {
-        console.error('Ошибка создания комнаты:', error);
-        alert('Ошибка соединения с сервером. Проверьте интернет-соединение.');
-    }
+    alert('Для работы мультиплеера нужно задеплоить API сервер. Инструкции в README.md - используйте Render.com (проще чем Railway)');
 }
 
 function joinRoomApi(roomId, playerId) {
@@ -329,29 +303,10 @@ if (tg) {
 // Запускаем нужный режим игры
 const urlParams = new URLSearchParams(window.location.search);
 roomId = urlParams.get('room');
-apiUrl = urlParams.get('api') || 'https://colors.up.railway.app';
 
 if (roomId) {
-    // Если есть параметры комнаты - многопользовательский режим
-    playerId = Math.random().toString(36).substr(2, 9);
-    isMultiplayer = true;
-    joinRoomApi(roomId, playerId).then(data => {
-        if (data.error) {
-            showModeSelection();
-            return;
-        }
-        getRoomStatus().then(room => {
-            if (room && room.status === 'ready' && room.target_color) {
-                targetHue = room.target_color.hue;
-                targetLightness = room.target_color.lightness;
-                showGame();
-                startRound();
-            } else {
-                const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${encodeURIComponent(apiUrl)}`;
-                showInviteScreen(inviteUrl);
-            }
-        });
-    });
+    alert('Для работы мультиплеера нужно задеплоить API сервер. Инструкции в README.md - используйте Render.com (проще чем Railway)');
+    showModeSelection();
 } else {
     // Показываем экран выбора режима
     showModeSelection();
