@@ -1,9 +1,13 @@
 import json
 import logging
 import os
+import random
+import string
+import threading
 import time
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from flask import Flask, jsonify, request
 from telegram import KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
@@ -38,8 +42,112 @@ load_env_file()
 
 TOKEN = os.environ.get("BOT_TOKEN")
 WEB_APP_URL = os.environ.get("WEB_APP_URL")
+API_URL = os.environ.get("API_URL", "http://127.0.0.1:5000")
 # Автоматическая версия на основе времени запуска
 WEB_APP_VERSION = os.environ.get("WEB_APP_VERSION", str(int(time.time())))
+
+# Хранилище комнат в памяти
+rooms = {}
+
+# Flask приложение для HTTP API
+app = Flask(__name__)
+
+
+@app.route('/api/room/<room_id>', methods=['GET'])
+def get_room_info(room_id):
+    """Получить информацию о комнате"""
+    room = get_room(room_id)
+    if room:
+        return jsonify(room)
+    return jsonify({'error': 'Room not found'}), 404
+
+
+@app.route('/api/join', methods=['POST'])
+def join_room_api():
+    """Присоединиться к комнате"""
+    data = request.json
+    room_id = data.get('room_id')
+    player_id = data.get('player_id')
+
+    if not room_id or not player_id:
+        return jsonify({'error': 'Missing room_id or player_id'}), 400
+
+    success = join_room(room_id, player_id)
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to join room'}), 400
+
+
+@app.route('/api/result', methods=['POST'])
+def submit_result_api():
+    """Отправить результат"""
+    data = request.json
+    room_id = data.get('room_id')
+    player_id = data.get('player_id')
+    result = data.get('result')
+
+    if not all([room_id, player_id, result]):
+        return jsonify({'error': 'Missing data'}), 400
+
+    submit_result(room_id, player_id, result)
+    return jsonify({'success': True})
+
+
+def run_flask():
+    """Запустить Flask сервер в отдельном потоке"""
+    # На Railway используем порт из переменной окружения
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
+
+
+def generate_room_id():
+    """Генерирует уникальный ID комнаты"""
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+
+
+def create_room():
+    """Создает новую комнату"""
+    room_id = generate_room_id()
+    rooms[room_id] = {
+        'players': [],
+        'status': 'waiting',
+        'target_color': None,
+        'results': {}
+    }
+    return room_id
+
+
+def join_room(room_id, player_id):
+    """Присоединяет игрока к комнате"""
+    if room_id not in rooms:
+        return False
+
+    room = rooms[room_id]
+    if player_id not in room['players'] and len(room['players']) < 2:
+        room['players'].append(player_id)
+
+        # Если два игрока - начинаем игру
+        if len(room['players']) == 2:
+            room['status'] = 'ready'
+            # Генерируем общий цвет для обоих
+            room['target_color'] = {
+                'hue': random.randint(0, 360),
+                'lightness': random.randint(0, 80)
+            }
+
+        return True
+    return False
+
+
+def get_room(room_id):
+    """Получает информацию о комнате"""
+    return rooms.get(room_id)
+
+
+def submit_result(room_id, player_id, result):
+    """Сохраняет результат игрока"""
+    if room_id in rooms:
+        rooms[room_id]['results'][player_id] = result
 
 
 def require_env(name, value):
@@ -64,14 +172,23 @@ def versioned_url(url):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    button = KeyboardButton(
+    solo_button = KeyboardButton(
         "Играть",
-        web_app=WebAppInfo(url=versioned_url(WEB_APP_URL)),
+        web_app=WebAppInfo(url=f"{versioned_url(WEB_APP_URL)}&api={API_URL}"),
     )
-    keyboard = ReplyKeyboardMarkup([[button]], resize_keyboard=True)
+
+    # Создаем комнату для игры с другом
+    room_id = create_room()
+    duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
+    duo_button = KeyboardButton(
+        "Играть с другом",
+        web_app=WebAppInfo(url=duo_url),
+    )
+
+    keyboard = ReplyKeyboardMarkup([[solo_button, duo_button]], resize_keyboard=True)
 
     await update.message.reply_text(
-        "Готов сыграть? Запускай мини-игру кнопкой ниже.",
+        "Готов сыграть? Выбери режим игры:",
         reply_markup=keyboard,
     )
 
@@ -99,6 +216,11 @@ def main() -> None:
     require_env("BOT_TOKEN", TOKEN)
     require_env("WEB_APP_URL", WEB_APP_URL)
 
+    # Запускаем Flask сервер в отдельном потоке
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
+    # Запускаем Telegram бота
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))

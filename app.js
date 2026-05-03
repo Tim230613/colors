@@ -18,6 +18,23 @@ let targetLightness = 54;
 let countdownId = null;
 let lastResult = null;
 
+// Многопользовательский режим
+let isMultiplayer = false;
+let roomId = null;
+let apiUrl = null;
+let playerId = null;
+let pollingId = null;
+
+// Получаем параметры из URL
+const urlParams = new URLSearchParams(window.location.search);
+roomId = urlParams.get('room');
+apiUrl = urlParams.get('api');
+
+if (roomId && apiUrl) {
+    isMultiplayer = true;
+    playerId = Math.random().toString(36).substr(2, 9);
+}
+
 function colorFromHsl(hue, lightness) {
   return `hsl(${hue}, 82%, ${lightness}%)`;
 }
@@ -29,6 +46,78 @@ function circularHueDiff(a, b) {
 
 function randomLightness() {
   return Math.floor(Math.random() * 81);
+}
+
+// API функции для многопользовательского режима
+async function joinRoom() {
+    try {
+        const response = await fetch(`${apiUrl}/api/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room_id: roomId, player_id: playerId })
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error joining room:', error);
+        return { error: 'Failed to connect' };
+    }
+}
+
+async function getRoomStatus() {
+    try {
+        const response = await fetch(`${apiUrl}/api/room/${roomId}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting room status:', error);
+        return null;
+    }
+}
+
+async function submitResultToAPI(result) {
+    try {
+        const response = await fetch(`${apiUrl}/api/result`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room_id: roomId, player_id: playerId, result })
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error submitting result:', error);
+        return { error: 'Failed to submit' };
+    }
+}
+
+function startMultiplayerGame() {
+    // Показываем ожидание
+    stageLabel.textContent = "Ожидание соперника...";
+    timer.textContent = "...";
+    controls.hidden = true;
+    result.hidden = true;
+    targetColor.classList.add("hidden-color");
+
+    // Подключаемся к комнате
+    joinRoom().then(data => {
+        if (data.error) {
+            stageLabel.textContent = "Ошибка подключения";
+            return;
+        }
+
+        // Начинаем опрос статуса комнаты
+        pollingId = setInterval(checkRoomStatus, 1000);
+    });
+}
+
+async function checkRoomStatus() {
+    const room = await getRoomStatus();
+    if (!room) return;
+
+    if (room.status === 'ready' && room.target_color) {
+        // Комната готова - начинаем игру с общим цветом
+        clearInterval(pollingId);
+        targetHue = room.target_color.hue;
+        targetLightness = room.target_color.lightness;
+        startRound();
+    }
 }
 
 function updateGuessPreview() {
@@ -114,14 +203,46 @@ function submitGuess() {
     lightnessDiff,
   };
 
-  // Отправляем результат в бот если открыто в Telegram
-  if (tg) {
-    tg.sendData(JSON.stringify({
-      score: score,
-      hueDiff: Math.round(hueDiff),
-      lightnessDiff: lightnessDiff
-    }));
+  // В многопользовательском режиме отправляем результат в API
+  if (isMultiplayer) {
+    submitResultToAPI(lastResult);
+    // Проверяем результаты соперника
+    setTimeout(checkOpponentResult, 2000);
+  } else {
+    // Отправляем результат в бот если открыто в Telegram
+    if (tg) {
+      tg.sendData(JSON.stringify({
+        score: score,
+        hueDiff: Math.round(hueDiff),
+        lightnessDiff: lightnessDiff
+      }));
+    }
   }
+}
+
+async function checkOpponentResult() {
+    const room = await getRoomStatus();
+    if (!room) return;
+
+    const results = room.results;
+    const opponentId = Object.keys(results).find(id => id !== playerId);
+
+    if (opponentId && results[opponentId]) {
+        const opponentResult = results[opponentId];
+        const myResult = results[playerId];
+
+        if (myResult.score > opponentResult.score) {
+            resultText.textContent = `Ты победил! ${myResult.score}% vs ${opponentResult.score}%`;
+        } else if (myResult.score < opponentResult.score) {
+            resultText.textContent = `Соперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
+        } else {
+            resultText.textContent = `Ничья! ${myResult.score}%`;
+        }
+    } else {
+        // Соперник еще не закончил
+        resultText.textContent = "Ожидание результата соперника...";
+        setTimeout(checkOpponentResult, 2000);
+    }
 }
 
 hueSlider.addEventListener("input", updateGuessPreview);
@@ -134,4 +255,9 @@ if (tg) {
   tg.expand();
 }
 
-startRound();
+// Запускаем нужный режим игры
+if (isMultiplayer) {
+    startMultiplayerGame();
+} else {
+    startRound();
+}
