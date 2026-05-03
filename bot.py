@@ -194,20 +194,66 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Создает комнату для игры с другом и дает ссылку"""
+    """Создает комнату для игры с другом и дает код"""
     if update.message.text != "Играть с другом":
         return
 
     room_id = create_room()
+    player_id = str(update.effective_user.id)
+    join_room(room_id, player_id)
+
     duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
-    logging.info(f"Duo URL: {duo_url}, Room ID: {room_id}")
+    logging.info(f"Room created: {room_id}")
+
+    button = KeyboardButton(
+        "Начать игру",
+        web_app=WebAppInfo(url=duo_url),
+    )
+    keyboard = ReplyKeyboardMarkup([[button]], resize_keyboard=True)
 
     await update.message.reply_text(
         f"🎮 Комната создана!\n\n"
-        f"Отправь эту ссылку другу:\n"
-        f"{duo_url}\n\n"
-        f"Когда друг перейдет по ссылке - игра начнется!"
+        f"Код комнаты: **{room_id}**\n\n"
+        f"Отправь этот код другу.\n"
+        f"Друг должен написать мне команду:\n"
+        f"/join {room_id}\n\n"
+        f"Когда друг присоединится - нажми кнопку ниже!",
+        reply_markup=keyboard,
     )
+
+
+async def join_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Присоединяет к комнате по коду"""
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "Использование: /join <код_комнаты>\n"
+            "Например: /join abc123"
+        )
+        return
+
+    room_id = context.args[0]
+    player_id = str(update.effective_user.id)
+
+    if join_room(room_id, player_id):
+        duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
+        logging.info(f"Player {player_id} joined room {room_id}")
+
+        button = KeyboardButton(
+            "Начать игру",
+            web_app=WebAppInfo(url=duo_url),
+        )
+        keyboard = ReplyKeyboardMarkup([[button]], resize_keyboard=True)
+
+        await update.message.reply_text(
+            f"✅ Ты присоединился к комнате!\n"
+            f"Нажми кнопку ниже чтобы начать игру.",
+            reply_markup=keyboard,
+        )
+    else:
+        await update.message.reply_text(
+            "❌ Не удалось присоединиться к комнате. "
+            "Проверь код или комната может быть полной."
+        )
 
 
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -240,6 +286,7 @@ def main() -> None:
     # Запускаем Telegram бота
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("join", join_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, create_duo_room))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
