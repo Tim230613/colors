@@ -197,10 +197,16 @@ function startRound() {
   clearInterval(countdownId);
   lastResult = null;
 
-  // В многопользовательском режиме цвет уже задан через WebSocket
+  console.log('startRound вызван, isMultiplayer:', isMultiplayer);
+  console.log('targetHue до генерации:', targetHue, 'targetLightness:', targetLightness);
+
+  // В многопользовательском режиме цвет уже задан через сервер
   if (!isMultiplayer) {
     targetHue = Math.floor(Math.random() * 361);
     targetLightness = randomLightness();
+    console.log('Сгенерирован локальный цвет:', targetHue, targetLightness);
+  } else {
+    console.log('Используем цвет с сервера:', targetHue, targetLightness);
   }
 
   resetSliders();
@@ -373,19 +379,25 @@ if (roomId) {
     // Если есть параметры комнаты - многопользовательский режим
     playerId = Math.random().toString(36).substr(2, 9);
     isMultiplayer = true;
+    console.log('Загрузка с параметрами комнаты. Room ID:', roomId, 'Player ID:', playerId, 'API URL:', apiUrl);
+
     joinRoomApi(roomId, playerId).then(data => {
+        console.log('Присоединение к комнате:', data);
         if (data.error) {
             showModeSelection();
             return;
         }
         getRoomStatus().then(room => {
+            console.log('Статус комнаты после присоединения:', room);
             if (room && room.status === 'ready' && room.target_color) {
                 targetHue = room.target_color.hue;
                 targetLightness = room.target_color.lightness;
+                console.log('Цель получена с сервера:', targetHue, targetLightness);
                 showGame();
                 startRound();
             } else {
                 const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${encodeURIComponent(apiUrl)}`;
+                console.log('Комната не готова, показываем экран приглашения');
                 showInviteScreen(inviteUrl);
             }
         }).catch(error => {
