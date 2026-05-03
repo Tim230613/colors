@@ -121,10 +121,23 @@ function startSoloGame() {
 }
 
 async function startMultiplayerGameFromUI() {
+    console.log('startMultiplayerGameFromUI called, isTelegram:', !!tg);
+
     // В Telegram используем бота для создания комнаты
     if (tg) {
+        console.log('Using Telegram bot for multiplayer');
         playerId = Math.random().toString(36).substr(2, 9);
-        tg.sendData(JSON.stringify({ action: "create_multiplayer_room", player_id: playerId }));
+        console.log('Sending data to bot:', { action: "create_multiplayer_room", player_id: playerId });
+
+        try {
+            tg.sendData(JSON.stringify({ action: "create_multiplayer_room", player_id: playerId }));
+            console.log('Data sent to bot successfully');
+            // Показываем сообщение что нужно ждать ответа бота
+            alert('Команда отправлена боту. Пожалуйста, подождите ответа...');
+        } catch (error) {
+            console.error('Error sending data to bot:', error);
+            alert('Ошибка отправки команды боту');
+        }
     } else {
         // Для веб версии создаем комнату напрямую
         apiUrl = 'https://colors-production-4484.up.railway.app';
@@ -387,7 +400,10 @@ function checkNewRound() {
 }
 
 soloModeButton.addEventListener("click", startSoloGame);
-multiplayerModeButton.addEventListener("click", startMultiplayerGameFromUI);
+multiplayerModeButton.addEventListener("click", () => {
+    console.log('Multiplayer button clicked');
+    startMultiplayerGameFromUI();
+});
 copyButton.addEventListener("click", () => {
     inviteLink.select();
     document.execCommand('copy');
