@@ -102,6 +102,7 @@ async function startMultiplayerGameFromUI() {
 
     // Генерируем player ID
     playerId = Math.random().toString(36).substr(2, 9);
+    console.log('Создание комнаты, player ID:', playerId);
 
     try {
         // Создаем комнату через API
@@ -112,10 +113,12 @@ async function startMultiplayerGameFromUI() {
         });
 
         const data = await response.json();
+        console.log('Ответ сервера:', data);
 
         if (data.success) {
             roomId = data.room_id;
             const inviteUrl = data.invite_url;
+            console.log('Комната создана:', roomId, 'Ссылка:', inviteUrl);
             showInviteScreen(inviteUrl);
         } else {
             alert('Ошибка создания комнаты: ' + (data.error || 'Неизвестная ошибка'));
@@ -178,6 +181,14 @@ function checkRoomStatus() {
             targetLightness = room.target_color.lightness;
             showGame();
             startRound();
+        } else if (room.status === 'waiting') {
+            // Обновляем текст в зависимости от количества игроков
+            const playerCount = room.players ? room.players.length : 0;
+            if (playerCount === 1) {
+                waitingText.textContent = "Ожидание второго игрока...";
+            } else if (playerCount === 2) {
+                waitingText.textContent = "Второй игрок присоединился! Генерация цвета...";
+            }
         }
     });
 }
@@ -258,21 +269,38 @@ function submitGuess() {
 
 function checkOpponentResult() {
     getRoomStatus().then(room => {
-        if (!room) return;
+        if (!room) {
+            console.error('Комната не найдена');
+            return;
+        }
 
-        const results = room.results;
+        console.log('Статус комнаты:', room);
+        console.log('Мой player ID:', playerId);
+        console.log('Результаты:', room.results);
+
+        const results = room.results || {};
         const opponentId = Object.keys(results).find(id => id !== playerId);
+
+        console.log('ID оппонента:', opponentId);
 
         if (opponentId && results[opponentId]) {
             const opponentResult = results[opponentId];
             const myResult = results[playerId];
 
-            if (myResult.score > opponentResult.score) {
-                resultText.textContent = `Ты победил! ${myResult.score}% vs ${opponentResult.score}%`;
-            } else if (myResult.score < opponentResult.score) {
-                resultText.textContent = `Соперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
+            console.log('Мой результат:', myResult);
+            console.log('Результат оппонента:', opponentResult);
+
+            if (myResult && opponentResult) {
+                if (myResult.score > opponentResult.score) {
+                    resultText.textContent = `🎉 Ты победил! ${myResult.score}% vs ${opponentResult.score}%`;
+                } else if (myResult.score < opponentResult.score) {
+                    resultText.textContent = `😔 Соперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
+                } else {
+                    resultText.textContent = `🤝 Ничья! ${myResult.score}%`;
+                }
             } else {
-                resultText.textContent = `Ничья! ${myResult.score}%`;
+                resultText.textContent = "Ожидание результата соперника...";
+                setTimeout(checkOpponentResult, 1000);
             }
         } else {
             resultText.textContent = "Ожидание результата соперника...";
