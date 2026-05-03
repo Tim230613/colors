@@ -21,10 +21,7 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  background:
-    linear-gradient(150deg, rgba(14, 138, 120, 0.34), transparent 32%),
-    linear-gradient(330deg, rgba(216, 78, 69, 0.28), transparent 38%),
-    linear-gradient(90deg, #101315 0 24%, #181b1e 24% 76%, #111517 76% 100%);
+  background: #1a1d21;
   font-family: Arial, Helvetica, sans-serif;
 }
 
