@@ -289,12 +289,16 @@ if (tg) {
 }
 
 // Запускаем нужный режим игры
+console.log('Starting app. isMultiplayer:', isMultiplayer, 'roomId:', roomId, 'tg:', !!tg);
+
 if (isMultiplayer) {
     // Если уже есть параметры комнаты - запускаем многопользовательскую игру
+    console.log('Starting multiplayer game');
     showGame();
     startMultiplayerGame();
 } else if (roomId && !tg) {
     // Если есть параметры комнаты но не открыт в Telegram
+    console.log('Room params but no Telegram');
     targetColor.classList.add("hidden-color");
     stageLabel.textContent = "Открой эту ссылку через Telegram бота!";
     timer.textContent = "❌";
@@ -302,5 +306,14 @@ if (isMultiplayer) {
     result.hidden = true;
 } else {
     // Показываем экран выбора режима
+    console.log('Showing mode selection');
     showModeSelection();
 }
+
+// Fallback: если через 1 секунду ничего не показалось, запускаем обычную игру
+setTimeout(() => {
+    if (modeSelection.hidden && gameSection.hidden) {
+        console.log('Fallback: nothing shown, starting solo game');
+        startSoloGame();
+    }
+}, 1000);

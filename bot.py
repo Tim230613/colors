@@ -176,7 +176,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logging.info(f"Solo URL: {solo_url}")
 
     solo_button = KeyboardButton(
-        "Играть одной",
+        "Играть",
         web_app=WebAppInfo(url=solo_url),
     )
 
