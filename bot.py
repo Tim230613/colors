@@ -9,7 +9,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit, join_room, leave_room
 from telegram import KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
@@ -54,7 +53,6 @@ rooms = {}
 # Flask приложение для HTTP API
 app = Flask(__name__)
 CORS(app)  # Разрешаем CORS запросы
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 
 @app.route('/api/room/<room_id>', methods=['GET'])
@@ -147,76 +145,15 @@ def ready_next_round_api():
         }
         room['ready_next'] = []
         room['results'] = {}  # Очищаем результаты для нового раунда
-        # Уведомляем всех игроков о новом раунде
-        socketio.emit('new_round', {'target_color': room['target_color']}, room=room_id)
 
     return jsonify({'success': True})
 
 
-# WebSocket события
-@socketio.on('connect')
-def handle_connect():
-    print(f"Client connected: {request.sid}")
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    print(f"Client disconnected: {request.sid}")
-
-@socketio.on('join_game')
-def handle_join_game(data):
-    """Присоединение игрока к комнате через WebSocket"""
-    room_id = data.get('room_id')
-    player_id = data.get('player_id')
-
-    if not room_id or not player_id:
-        return
-
-    join_room(room_id)
-    print(f"Player {player_id} joined room {room_id}")
-
-    # Присоединяем к комнате в памяти
-    if room_id in rooms:
-        room = rooms[room_id]
-        if player_id not in room['players']:
-            room['players'].append(player_id)
-
-        # Если два игрока - начинаем игру
-        if len(room['players']) == 2 and room['status'] == 'waiting':
-            room['status'] = 'ready'
-            room['target_color'] = {
-                'hue': random.randint(0, 360),
-                'lightness': random.randint(0, 80)
-            }
-            # Уведомляем всех игроков о начале игры
-            socketio.emit('game_start', {
-                'target_color': room['target_color']
-            }, room=room_id)
-
-@socketio.on('submit_result')
-def handle_submit_result(data):
-    """Обработка результата игрока через WebSocket"""
-    room_id = data.get('room_id')
-    player_id = data.get('player_id')
-    result = data.get('result')
-
-    if not all([room_id, player_id, result]):
-        return
-
-    if room_id in rooms:
-        rooms[room_id]['results'][player_id] = result
-
-        # Проверяем, закончили ли оба игрока
-        if len(rooms[room_id]['results']) == 2:
-            results = rooms[room_id]['results']
-            # Уведомляем обоих игроков о результатах
-            socketio.emit('round_complete', {'results': results}, room=room_id)
-
-
 def run_flask():
-    """Запустить Flask-SocketIO сервер"""
+    """Запустить Flask сервер в отдельном потоке"""
     # На Railway используем порт из переменной окружения
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
 
 
 def generate_room_id():
@@ -291,7 +228,7 @@ def versioned_url(url):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    solo_url = f"{versioned_url(WEB_APP_URL)}&ws={API_URL}"
+    solo_url = f"{versioned_url(WEB_APP_URL)}&api={API_URL}"
     logging.info(f"Solo URL: {solo_url}")
 
     solo_button = KeyboardButton(
