@@ -421,7 +421,8 @@ if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
 
 console.log('Финальные параметры:', { roomId, apiUrl, isTelegram: !!tg });
 
-if (roomId) {
+try {
+    if (roomId) {
     // Если есть параметры комнаты - многопользовательский режим
     playerId = Math.random().toString(36).substr(2, 9);
     isMultiplayer = true;
@@ -456,5 +457,13 @@ if (roomId) {
     });
 } else {
     // Показываем экран выбора режима
-    showModeSelection();
+    console.log('No roomId, showing mode selection');
+    try {
+        showModeSelection();
+    } catch (error) {
+        console.error('Error in showModeSelection:', error);
+    }
+}
+} catch (error) {
+    console.error('Error in initialization:', error);
 }
