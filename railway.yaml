@@ -1,0 +1,28 @@
+services:
+  # API сервер для мультиплеера
+  - type: web
+    name: colors-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python api_server.py
+    envVars:
+      - key: WEB_APP_URL
+        value: https://tim230613.github.io/colors/
+      - key: PORT
+        value: 5000
+
+  # Telegram бот
+  - type: worker
+    name: colors-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEB_APP_URL
+        value: https://tim230613.github.io/colors/
+      - key: API_URL
+        value: https://colors-production-4484.up.railway.app
