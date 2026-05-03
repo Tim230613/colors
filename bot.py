@@ -180,14 +180,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         web_app=WebAppInfo(url=solo_url),
     )
 
-    # Создаем комнату для игры с другом
-    room_id = create_room()
-    duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
-    logging.info(f"Duo URL: {duo_url}, Room ID: {room_id}")
-
+    # Кнопка для создания комнаты с другом (без мини-апп)
     duo_button = KeyboardButton(
         "Играть с другом",
-        web_app=WebAppInfo(url=duo_url),
     )
 
     keyboard = ReplyKeyboardMarkup([[solo_button, duo_button]], resize_keyboard=True)
@@ -195,6 +190,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Готов сыграть? Выбери режим игры:",
         reply_markup=keyboard,
+    )
+
+
+async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Создает комнату для игры с другом и дает ссылку"""
+    if update.message.text != "Играть с другом":
+        return
+
+    room_id = create_room()
+    duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
+    logging.info(f"Duo URL: {duo_url}, Room ID: {room_id}")
+
+    await update.message.reply_text(
+        f"🎮 Комната создана!\n\n"
+        f"Отправь эту ссылку другу:\n"
+        f"{duo_url}\n\n"
+        f"Когда друг перейдет по ссылке - игра начнется!"
     )
 
 
@@ -228,6 +240,7 @@ def main() -> None:
     # Запускаем Telegram бота
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, create_duo_room))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
