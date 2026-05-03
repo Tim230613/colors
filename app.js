@@ -41,6 +41,11 @@ apiUrl = urlParams.get('api');
 
 console.log('URL params:', { roomId, apiUrl, fullUrl: window.location.href });
 console.log('Telegram WebApp available:', !!tg);
+console.log('Environment:', {
+    isLocal: window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost',
+    hostname: window.location.hostname,
+    protocol: window.location.protocol
+});
 
 // Многопользовательский режим только если есть параметры И открыт в Telegram
 if (roomId && apiUrl && tg) {
@@ -68,7 +73,9 @@ function randomLightness() {
 // API функции для многопользовательского режима
 async function joinRoomApi(room_id, player_id) {
     try {
-        const response = await fetch(`${apiUrl}/api/join`, {
+        const effectiveApiUrl = apiUrl || window.location.origin;
+        console.log('Joining room at:', `${effectiveApiUrl}/api/join`);
+        const response = await fetch(`${effectiveApiUrl}/api/join`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ room_id, player_id })
@@ -82,7 +89,8 @@ async function joinRoomApi(room_id, player_id) {
 
 async function getRoomStatus() {
     try {
-        const response = await fetch(`${apiUrl}/api/room/${roomId}`);
+        const effectiveApiUrl = apiUrl || window.location.origin;
+        const response = await fetch(`${effectiveApiUrl}/api/room/${roomId}`);
         return await response.json();
     } catch (error) {
         console.error('Error getting room status:', error);
@@ -92,7 +100,8 @@ async function getRoomStatus() {
 
 async function submitResultToAPI(result) {
     try {
-        const response = await fetch(`${apiUrl}/api/result`, {
+        const effectiveApiUrl = apiUrl || window.location.origin;
+        const response = await fetch(`${effectiveApiUrl}/api/result`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ room_id: roomId, player_id: playerId, result })
@@ -106,7 +115,8 @@ async function submitResultToAPI(result) {
 
 async function readyForNextRound() {
     try {
-        const response = await fetch(`${apiUrl}/api/ready-next`, {
+        const effectiveApiUrl = apiUrl || window.location.origin;
+        const response = await fetch(`${effectiveApiUrl}/api/ready-next`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ room_id: roomId, player_id: playerId })
@@ -168,6 +178,11 @@ function showInviteScreen(url) {
     inviteScreen.hidden = false;
     gameSection.hidden = true;
 
+    // Если URL не передан, формируем его сами
+    if (!url) {
+        url = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${encodeURIComponent(apiUrl || window.location.origin)}`;
+    }
+
     inviteLink.value = url;
     waitingText.textContent = "Ожидание второго игрока...";
 
@@ -188,19 +203,36 @@ function startSoloGame() {
 }
 
 async function startMultiplayerGameFromUI() {
+    console.log('startMultiplayerGameFromUI called. apiUrl:', apiUrl, 'playerId:', playerId);
+
+    // Если API URL не указан, используем тот же хост, что и у мини-аппа
+    let effectiveApiUrl = apiUrl;
     if (!apiUrl) {
-        alert("Многопользовательский режим недоступен - нет API URL");
-        return;
+        // Формируем API URL на основе текущего хоста
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const port = window.location.port ? `:${window.location.port}` : '';
+        effectiveApiUrl = `${protocol}//${hostname}${port}`;
+        console.log('Using fallback API URL:', effectiveApiUrl);
     }
 
     // Создаем комнату через API
     try {
-        const response = await fetch(`${apiUrl}/api/create-room`, {
+        console.log('Attempting to create room at:', `${effectiveApiUrl}/api/create-room`);
+        const response = await fetch(`${effectiveApiUrl}/api/create-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ player_id: playerId })
         });
+
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('Room created:', data);
 
         if (data.error) {
             alert("Ошибка создания комнаты: " + data.error);
@@ -209,12 +241,13 @@ async function startMultiplayerGameFromUI() {
 
         roomId = data.room_id;
         isMultiplayer = true;
+        apiUrl = effectiveApiUrl; // Сохраняем эффективный URL
 
         // Показываем экран приглашения
         showInviteScreen(data.invite_url);
     } catch (error) {
         console.error('Error creating room:', error);
-        alert("Ошибка соединения с сервером");
+        alert("Ошибка соединения с сервером: " + error.message + "\nAPI URL: " + effectiveApiUrl);
     }
 }
 
@@ -375,6 +408,18 @@ console.log('Starting app. isMultiplayer:', isMultiplayer, 'roomId:', roomId, 't
 if (isMultiplayer && roomId) {
     // Если уже есть параметры комнаты - присоединяемся и проверяем статус
     console.log('Joining existing room');
+
+    // Используем fallback для API URL если нужно
+    let effectiveApiUrl = apiUrl;
+    if (!apiUrl) {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const port = window.location.port ? `:${window.location.port}` : '';
+        effectiveApiUrl = `${protocol}//${hostname}${port}`;
+        apiUrl = effectiveApiUrl;
+        console.log('Using fallback API URL for existing room:', effectiveApiUrl);
+    }
+
     joinRoomApi(roomId, playerId).then(data => {
         if (data.error) {
             console.error('Error joining room:', data.error);
@@ -391,7 +436,7 @@ if (isMultiplayer && roomId) {
                 startRound();
             } else {
                 // Комната в ожидании - показываем экран приглашения
-                const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${apiUrl}`;
+                const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${encodeURIComponent(apiUrl)}`;
                 showInviteScreen(inviteUrl);
             }
         });
