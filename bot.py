@@ -172,14 +172,19 @@ def versioned_url(url):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    solo_url = f"{versioned_url(WEB_APP_URL)}&api={API_URL}"
+    logging.info(f"Solo URL: {solo_url}")
+
     solo_button = KeyboardButton(
         "Играть",
-        web_app=WebAppInfo(url=f"{versioned_url(WEB_APP_URL)}&api={API_URL}"),
+        web_app=WebAppInfo(url=solo_url),
     )
 
     # Создаем комнату для игры с другом
     room_id = create_room()
     duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
+    logging.info(f"Duo URL: {duo_url}, Room ID: {room_id}")
+
     duo_button = KeyboardButton(
         "Играть с другом",
         web_app=WebAppInfo(url=duo_url),
