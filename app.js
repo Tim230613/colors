@@ -1,8 +1,13 @@
 const tg = window.Telegram?.WebApp;
 
 const modeSelection = document.getElementById("modeSelection");
+const inviteScreen = document.getElementById("inviteScreen");
 const gameSection = document.getElementById("gameSection");
 const soloModeButton = document.getElementById("soloModeButton");
+const multiplayerModeButton = document.getElementById("multiplayerModeButton");
+const inviteLink = document.getElementById("inviteLink");
+const copyButton = document.getElementById("copyButton");
+const waitingText = document.getElementById("waitingText");
 
 const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
@@ -22,6 +27,18 @@ let targetLightness = 54;
 let countdownId = null;
 let lastResult = null;
 
+// Многопользовательский режим через WebSocket
+let isMultiplayer = false;
+let roomId = null;
+let playerId = null;
+let socket = null;
+let wsUrl = null;
+
+// Получаем параметры из URL
+const urlParams = new URLSearchParams(window.location.search);
+roomId = urlParams.get('room');
+wsUrl = urlParams.get('ws');
+
 function colorFromHsl(hue, lightness) {
   return `hsl(${hue}, 82%, ${lightness}%)`;
 }
@@ -33,6 +50,65 @@ function circularHueDiff(a, b) {
 
 function randomLightness() {
   return Math.floor(Math.random() * 81);
+}
+
+function initWebSocket() {
+    if (!wsUrl) {
+        // Используем текущий хост если URL не указан
+        wsUrl = window.location.origin;
+    }
+
+    console.log('Connecting to WebSocket:', wsUrl);
+    socket = io(wsUrl, {
+        transports: ['websocket', 'polling'],
+        reconnection: true
+    });
+
+    socket.on('connect', () => {
+        console.log('WebSocket connected');
+        if (roomId && playerId) {
+            socket.emit('join_game', { room_id: roomId, player_id: playerId });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('WebSocket disconnected');
+    });
+
+    socket.on('game_start', (data) => {
+        console.log('Game started:', data);
+        targetHue = data.target_color.hue;
+        targetLightness = data.target_color.lightness;
+        showGame();
+        startRound();
+    });
+
+    socket.on('round_complete', (data) => {
+        console.log('Round complete:', data);
+        const results = data.results;
+        const opponentId = Object.keys(results).find(id => id !== playerId);
+
+        if (opponentId && results[opponentId]) {
+            const opponentResult = results[opponentId];
+            const myResult = results[playerId];
+
+            if (myResult.score > opponentResult.score) {
+                resultText.textContent = `Ты победил! ${myResult.score}% vs ${opponentResult.score}%`;
+            } else if (myResult.score < opponentResult.score) {
+                resultText.textContent = `Соперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
+            } else {
+                resultText.textContent = `Ничья! ${myResult.score}%`;
+            }
+        }
+    });
+
+    socket.on('new_round', (data) => {
+        console.log('New round:', data);
+        targetHue = data.target_color.hue;
+        targetLightness = data.target_color.lightness;
+        againButton.disabled = false;
+        startRound();
+    });
 }
 
 function updateGuessPreview() {
@@ -56,25 +132,54 @@ function resetSliders() {
 
 function showModeSelection() {
     modeSelection.hidden = false;
+    inviteScreen.hidden = true;
     gameSection.hidden = true;
+}
+
+function showInviteScreen(url) {
+    modeSelection.hidden = true;
+    inviteScreen.hidden = false;
+    gameSection.hidden = true;
+
+    inviteLink.value = url;
+    waitingText.textContent = "Ожидание второго игрока...";
 }
 
 function showGame() {
     modeSelection.hidden = true;
+    inviteScreen.hidden = true;
     gameSection.hidden = false;
 }
 
 function startSoloGame() {
+    isMultiplayer = false;
     showGame();
     startRound();
+}
+
+async function startMultiplayerGameFromUI() {
+    // Генерируем ID комнаты и игрока
+    roomId = Math.random().toString(36).substr(2, 6);
+    playerId = Math.random().toString(36).substr(2, 9);
+    isMultiplayer = true;
+
+    // Инициализируем WebSocket
+    initWebSocket();
+
+    // Формируем ссылку для приглашения
+    const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&ws=${wsUrl}`;
+    showInviteScreen(inviteUrl);
 }
 
 function startRound() {
   clearInterval(countdownId);
   lastResult = null;
 
-  targetHue = Math.floor(Math.random() * 361);
-  targetLightness = randomLightness();
+  // В многопользовательском режиме цвет уже задан через WebSocket
+  if (!isMultiplayer) {
+    targetHue = Math.floor(Math.random() * 361);
+    targetLightness = randomLightness();
+  }
 
   resetSliders();
 
@@ -133,20 +238,59 @@ function submitGuess() {
     lightnessDiff,
   };
 
-  // В обычном режиме результат только в приложении
+  // В многопользовательском режиме отправляем результат через WebSocket
+  if (isMultiplayer && socket) {
+    socket.emit('submit_result', {
+      room_id: roomId,
+      player_id: playerId,
+      result: lastResult
+    });
+    resultText.textContent = "Ожидание результата соперника...";
+  }
 }
 
 hueSlider.addEventListener("input", updateGuessPreview);
 lightnessSlider.addEventListener("input", updateGuessPreview);
 submitButton.addEventListener("click", submitGuess);
-againButton.addEventListener("click", startRound);
+againButton.addEventListener("click", () => {
+    if (isMultiplayer && socket) {
+        resultText.textContent = "Ожидание соперника...";
+        againButton.disabled = true;
+        // Отправляем готовность к следующему раунду через HTTP API
+        fetch(`${wsUrl}/api/ready-next`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room_id: roomId, player_id: playerId })
+        });
+    } else {
+        startRound();
+    }
+});
 
 soloModeButton.addEventListener("click", startSoloGame);
+multiplayerModeButton.addEventListener("click", startMultiplayerGameFromUI);
+copyButton.addEventListener("click", () => {
+    inviteLink.select();
+    document.execCommand('copy');
+    copyButton.textContent = "Скопировано!";
+    setTimeout(() => {
+        copyButton.textContent = "Копировать";
+    }, 2000);
+});
 
 if (tg) {
   tg.ready();
   tg.expand();
 }
 
-// Показываем экран выбора режима
-showModeSelection();
+// Запускаем нужный режим игры
+if (roomId && wsUrl) {
+    // Если есть параметры комнаты - многопользовательский режим
+    playerId = Math.random().toString(36).substr(2, 9);
+    isMultiplayer = true;
+    initWebSocket();
+    showInviteScreen(`${window.location.origin}${window.location.pathname}?room=${roomId}&ws=${wsUrl}`);
+} else {
+    // Показываем экран выбора режима
+    showModeSelection();
+}
