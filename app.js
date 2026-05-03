@@ -31,12 +31,15 @@ roomId = urlParams.get('room');
 apiUrl = urlParams.get('api');
 
 console.log('URL params:', { roomId, apiUrl, fullUrl: window.location.href });
+console.log('Telegram WebApp available:', !!tg);
 
-if (roomId && apiUrl) {
+// Многопользовательский режим только если есть параметры И открыт в Telegram
+if (roomId && apiUrl && tg) {
     isMultiplayer = true;
     playerId = Math.random().toString(36).substr(2, 9);
     console.log('Multiplayer mode enabled:', { roomId, apiUrl, playerId });
 } else {
+    isMultiplayer = false;
     console.log('Single player mode');
 }
 
@@ -255,6 +258,13 @@ if (tg) {
 // Запускаем нужный режим игры
 if (isMultiplayer) {
     startMultiplayerGame();
+} else if (roomId && !tg) {
+    // Если есть параметры комнаты но не открыт в Telegram
+    targetColor.classList.add("hidden-color");
+    stageLabel.textContent = "Открой эту ссылку через Telegram бота!";
+    timer.textContent = "❌";
+    controls.hidden = true;
+    result.hidden = true;
 } else {
     startRound();
 }
