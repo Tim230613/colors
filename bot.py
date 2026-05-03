@@ -65,7 +65,7 @@ def versioned_url(url):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     button = KeyboardButton(
-        f"Играть v{WEB_APP_VERSION}",
+        "Играть",
         web_app=WebAppInfo(url=versioned_url(WEB_APP_URL)),
     )
     keyboard = ReplyKeyboardMarkup([[button]], resize_keyboard=True)
