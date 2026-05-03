@@ -77,7 +77,20 @@ function showInviteScreen(url) {
     inviteScreen.hidden = false;
     gameSection.hidden = true;
 
-    inviteLink.value = url;
+    // В Telegram скрываем ссылку, показываем сообщение о боте
+    if (tg) {
+        document.getElementById('inviteText').textContent = "Перейди к боту и нажми кнопку 'Играть с другом'";
+        document.getElementById('linkContainer').style.display = 'none';
+        document.getElementById('copyButton').style.display = 'none';
+        document.getElementById('telegramButton').style.display = 'block';
+    } else {
+        document.getElementById('inviteText').textContent = "Отправь эту ссылку другу:";
+        document.getElementById('linkContainer').style.display = 'flex';
+        document.getElementById('copyButton').style.display = 'block';
+        document.getElementById('telegramButton').style.display = 'none';
+        inviteLink.value = url;
+    }
+
     waitingText.textContent = "Ожидание второго игрока...";
 
     // Начинаем опрос статуса комнаты
@@ -97,35 +110,38 @@ function startSoloGame() {
 }
 
 async function startMultiplayerGameFromUI() {
-    // Используем Railway API сервер
-    apiUrl = 'https://colors-production-4484.up.railway.app';
+    // В Telegram используем бота для создания комнаты
+    if (tg) {
+        playerId = Math.random().toString(36).substr(2, 9);
+        tg.sendData(JSON.stringify({ action: "create_multiplayer_room", player_id: playerId }));
+    } else {
+        // Для веб версии создаем комнату напрямую
+        apiUrl = 'https://colors-production-4484.up.railway.app';
+        playerId = Math.random().toString(36).substr(2, 9);
+        console.log('Создание комнаты (веб версия), player ID:', playerId);
 
-    // Генерируем player ID
-    playerId = Math.random().toString(36).substr(2, 9);
-    console.log('Создание комнаты, player ID:', playerId);
+        try {
+            const response = await fetch(`${apiUrl}/api/create-room`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: playerId })
+            });
 
-    try {
-        // Создаем комнату через API
-        const response = await fetch(`${apiUrl}/api/create-room`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player_id: playerId })
-        });
+            const data = await response.json();
+            console.log('Ответ сервера:', data);
 
-        const data = await response.json();
-        console.log('Ответ сервера:', data);
-
-        if (data.success) {
-            roomId = data.room_id;
-            const inviteUrl = data.invite_url;
-            console.log('Комната создана:', roomId, 'Ссылка:', inviteUrl);
-            showInviteScreen(inviteUrl);
-        } else {
-            alert('Ошибка создания комнаты: ' + (data.error || 'Неизвестная ошибка'));
+            if (data.success) {
+                roomId = data.room_id;
+                const inviteUrl = data.invite_url;
+                console.log('Комната создана:', roomId, 'Ссылка:', inviteUrl);
+                showInviteScreen(inviteUrl);
+            } else {
+                alert('Ошибка создания комнаты: ' + (data.error || 'Неизвестная ошибка'));
+            }
+        } catch (error) {
+            console.error('Ошибка создания комнаты:', error);
+            alert('Ошибка соединения с сервером. Проверьте интернет-соединение.');
         }
-    } catch (error) {
-        console.error('Ошибка создания комнаты:', error);
-        alert('Ошибка соединения с сервером. Проверьте интернет-соединение.');
     }
 }
 
@@ -182,12 +198,17 @@ function checkRoomStatus() {
             showGame();
             startRound();
         } else if (room.status === 'waiting') {
-            // Обновляем текст в зависимости от количества игроков
-            const playerCount = room.players ? room.players.length : 0;
-            if (playerCount === 1) {
-                waitingText.textContent = "Ожидание второго игрока...";
-            } else if (playerCount === 2) {
-                waitingText.textContent = "Второй игрок присоединился! Генерация цвета...";
+            // В Telegram показываем сообщение об использовании бота
+            if (tg) {
+                waitingText.textContent = "Перешли сообщение бота другу через кнопку ниже";
+            } else {
+                // Обновляем текст в зависимости от количества игроков
+                const playerCount = room.players ? room.players.length : 0;
+                if (playerCount === 1) {
+                    waitingText.textContent = "Ожидание второго игрока...";
+                } else if (playerCount === 2) {
+                    waitingText.textContent = "Второй игрок присоединился! Генерация цвета...";
+                }
             }
         }
     });

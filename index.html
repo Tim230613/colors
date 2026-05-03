@@ -41,10 +41,13 @@
           </div>
         </div>
         <div class="invite-content">
-          <p class="invite-text">Отправь эту ссылку другу:</p>
-          <div class="invite-link-container">
+          <p class="invite-text" id="inviteText">Отправь эту ссылку другу:</p>
+          <div class="invite-link-container" id="linkContainer">
             <input id="inviteLink" type="text" readonly class="invite-link">
             <button id="copyButton" class="copy-button">Копировать</button>
+          </div>
+          <div id="telegramButton" style="display: none; margin-top: 20px;">
+            <p style="text-align: center; margin-bottom: 10px;">Нажми на кнопку ниже в боте:</p>
           </div>
           <p class="waiting-text" id="waitingText">Ожидание второго игрока...</p>
         </div>
