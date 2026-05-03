@@ -1,5 +1,7 @@
 const tg = window.Telegram?.WebApp;
 
+console.log('App initializing...');
+
 const modeSelection = document.getElementById("modeSelection");
 const gameSection = document.getElementById("gameSection");
 const soloModeButton = document.getElementById("soloModeButton");
@@ -8,6 +10,13 @@ const inviteScreen = document.getElementById("inviteScreen");
 const inviteLink = document.getElementById("inviteLink");
 const waitingText = document.getElementById("waitingText");
 const copyButton = document.getElementById("copyButton");
+
+console.log('Elements found:', {
+  modeSelection: !!modeSelection,
+  gameSection: !!gameSection,
+  soloModeButton: !!soloModeButton,
+  multiplayerModeButton: !!multiplayerModeButton
+});
 
 const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
@@ -67,9 +76,11 @@ function resetSliders() {
 }
 
 function showModeSelection() {
+    console.log('showModeSelection called');
     modeSelection.hidden = false;
     inviteScreen.hidden = true;
     gameSection.hidden = true;
+    console.log('modeSelection.hidden:', modeSelection.hidden);
 }
 
 function showInviteScreen(url) {
