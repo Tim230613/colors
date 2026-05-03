@@ -131,12 +131,22 @@ function joinRoomApi(roomId, playerId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room_id: roomId, player_id: playerId })
-    }).then(response => response.json());
+    }).then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    });
 }
 
 function getRoomStatus() {
     return fetch(`${apiUrl}/api/room/${roomId}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .catch(error => {
             console.error('Ошибка получения статуса комнаты:', error);
             return null;
@@ -350,7 +360,13 @@ if (roomId) {
                 const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${encodeURIComponent(apiUrl)}`;
                 showInviteScreen(inviteUrl);
             }
+        }).catch(error => {
+            console.error('Ошибка получения статуса комнаты:', error);
+            showModeSelection();
         });
+    }).catch(error => {
+        console.error('Ошибка присоединения к комнате:', error);
+        showModeSelection();
     });
 } else {
     // Показываем экран выбора режима
