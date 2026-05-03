@@ -66,6 +66,11 @@ def create_room_api():
     # Формируем URL для приглашения
     web_app_url = os.environ.get('WEB_APP_URL', 'https://tim230613.github.io/colors/')
     api_url = os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'https://colors-production-4484.up.railway.app')
+
+    # Убедимся что API URL имеет протокол
+    if not api_url.startswith('http://') and not api_url.startswith('https://'):
+        api_url = f'https://{api_url}'
+
     invite_url = f"{web_app_url}?room={room_id}&api={api_url}"
 
     return jsonify({
