@@ -65,7 +65,8 @@ def create_room_api():
 
     # Формируем URL для приглашения
     web_app_url = os.environ.get('WEB_APP_URL', 'https://tim230613.github.io/colors/')
-    invite_url = f"{web_app_url}?room={room_id}&api=https://colors.up.railway.app"
+    api_url = os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'https://colors-production-4484.up.railway.app')
+    invite_url = f"{web_app_url}?room={room_id}&api={api_url}"
 
     return jsonify({
         'success': True,
