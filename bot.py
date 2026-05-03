@@ -194,7 +194,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logging.info(f"create_duo_room called, text: {update.message.text}")
+    text = update.message.text if update.message else ""
+    logging.info(f"create_duo_room called, text: '{text}'")
+
+    if text != "Играть с другом":
+        return
 
     room_id = create_room()
     player_id = str(update.effective_user.id)
@@ -245,7 +249,7 @@ def main() -> None:
     # Запускаем Telegram бота
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^Играть с другом$"), create_duo_room))
+    app.add_handler(MessageHandler(filters.TEXT, create_duo_room))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
