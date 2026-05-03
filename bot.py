@@ -43,7 +43,7 @@ load_env_file()
 
 TOKEN = os.environ.get("BOT_TOKEN")
 WEB_APP_URL = os.environ.get("WEB_APP_URL")
-API_URL = os.environ.get("API_URL", "http://127.0.0.1:5000")
+API_URL = os.environ.get("API_URL", "https://colors-production-4484.up.railway.app")
 # Автоматическая версия на основе времени запуска
 WEB_APP_VERSION = os.environ.get("WEB_APP_VERSION", str(int(time.time())))
 
