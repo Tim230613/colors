@@ -8,7 +8,7 @@ import time
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import Flask, jsonify, request
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
+from telegram import KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -194,7 +194,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Создает комнату для игры с другом и дает инлайн кнопку"""
+    """Создает комнату для игры с другом и дает кнопку"""
     if update.message.text != "Играть с другом":
         return
 
@@ -205,32 +205,19 @@ async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
     logging.info(f"Room created: {room_id}")
 
-    # Инлайн кнопка для приглашения друга
-    inline_button = InlineKeyboardButton(
+    # Кнопка для приглашения друга (обычная клавиатура - пересылается)
+    invite_button = KeyboardButton(
         "🎮 Присоединиться к игре",
-        web_app=WebAppInfo(url=duo_url)
-    )
-    inline_keyboard = InlineKeyboardMarkup([[inline_button]])
-
-    # Кнопка для самого создателя
-    regular_button = KeyboardButton(
-        "Начать игру",
         web_app=WebAppInfo(url=duo_url),
     )
-    regular_keyboard = ReplyKeyboardMarkup([[regular_button]], resize_keyboard=True)
+    invite_keyboard = ReplyKeyboardMarkup([[invite_button]], resize_keyboard=True)
 
     await update.message.reply_text(
         f"🎮 Комната создана!\n\n"
-        f"Перешли другу это сообщение с кнопкой ниже.\n"
-        f"Когда он нажмет 'Присоединиться к игре' - вы будете играть вместе!\n\n"
-        f"Когда друг присоединится - нажми 'Начать игру'.",
-        reply_markup=inline_keyboard,
-    )
-
-    # Отправляем отдельное сообщение с кнопкой для создателя
-    await update.message.reply_text(
-        "Для тебя:",
-        reply_markup=regular_keyboard,
+        f"Перешли это сообщение другу.\n"
+        f"Когда он получит - нажмет 'Присоединиться к игре'\n"
+        f"и вы будете играть вместе с одним цветом!",
+        reply_markup=invite_keyboard,
     )
 
 
