@@ -393,8 +393,8 @@ if (tg) {
 
 // Запускаем нужный режим игры
 const urlParams = new URLSearchParams(window.location.search);
-let roomId = urlParams.get('room');
-let apiUrl = urlParams.get('api') || 'https://colors-production-4484.up.railway.app';
+roomId = urlParams.get('room');
+apiUrl = urlParams.get('api') || 'https://colors-production-4484.up.railway.app';
 
 // В Telegram WebApp параметры могут быть в initData
 if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
