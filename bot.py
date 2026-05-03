@@ -194,18 +194,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Создает комнату для игры с другом и дает кнопку"""
-    if update.message.text != "Играть с другом":
-        return
+    logging.info(f"create_duo_room called, text: {update.message.text}")
 
     room_id = create_room()
     player_id = str(update.effective_user.id)
     join_room(room_id, player_id)
 
     duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
-    logging.info(f"Room created: {room_id}")
+    logging.info(f"Room created: {room_id}, API_URL: {API_URL}")
 
-    # Кнопка для приглашения друга (обычная клавиатура - пересылается)
     invite_button = KeyboardButton(
         "🎮 Присоединиться к игре",
         web_app=WebAppInfo(url=duo_url),
@@ -213,10 +210,7 @@ async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     invite_keyboard = ReplyKeyboardMarkup([[invite_button]], resize_keyboard=True)
 
     await update.message.reply_text(
-        f"🎮 Комната создана!\n\n"
-        f"Перешли это сообщение другу.\n"
-        f"Когда он получит - нажмет 'Присоединиться к игре'\n"
-        f"и вы будете играть вместе с одним цветом!",
+        "🎮 Комната создана! Перешли это сообщение другу.",
         reply_markup=invite_keyboard,
     )
 
