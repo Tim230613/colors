@@ -185,7 +185,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Играть с другом",
     )
 
-    keyboard = ReplyKeyboardMarkup([[solo_button, duo_button]], resize_keyboard=True)
+    keyboard = ReplyKeyboardMarkup([[solo_button], [duo_button]], resize_keyboard=True)
 
     await update.message.reply_text(
         "Готов сыграть? Выбери режим игры:",
