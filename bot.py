@@ -245,35 +245,48 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logging.info(f"Received web_app_data: {update.message.web_app_data.data}")
     try:
         data = json.loads(update.message.web_app_data.data)
-    except json.JSONDecodeError:
+        logging.info(f"Parsed data: {data}")
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON decode error: {e}")
         await update.message.reply_text("Не смог прочитать данные.")
         return
 
     # Обработка действия создания комнаты
     action = data.get("action")
+    logging.info(f"Action: {action}")
     if action == "create_multiplayer_room":
+        logging.info("Creating multiplayer room...")
         # Генерируем player ID
         player_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=9))
+        logging.info(f"Player ID: {player_id}")
 
         # Создаем комнату
         room_id = create_room()
+        logging.info(f"Room ID: {room_id}")
         join_room(room_id, player_id)
 
         # Формируем параметры для Telegram WebApp
         start_param = json.dumps({"room": room_id, "api": API_URL})
+        logging.info(f"Start param: {start_param}")
 
         # Формируем URL для приглашения (для веб версии)
         web_invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
+        logging.info(f"Web invite URL: {web_invite_url}")
 
-        await update.message.reply_text(
-            f"Комната создана!\n\n"
-            f"Перешли это сообщение другу:",
-            reply_markup=ReplyKeyboardMarkup([[
-                KeyboardButton("Играть с другом", web_app=WebAppInfo(url=WEB_APP_URL, start_param=start_param))
-            ]], resize_keyboard=True)
-        )
+        try:
+            await update.message.reply_text(
+                f"Комната создана!\n\n"
+                f"Перешли это сообщение другу:",
+                reply_markup=ReplyKeyboardMarkup([[
+                    KeyboardButton("Играть с другом", web_app=WebAppInfo(url=WEB_APP_URL, start_param=start_param))
+                ]], resize_keyboard=True)
+            )
+            logging.info("Reply sent successfully")
+        except Exception as e:
+            logging.error(f"Error sending reply: {e}")
         return
 
     # Обработка результатов игры
