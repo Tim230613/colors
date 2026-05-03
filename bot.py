@@ -251,7 +251,7 @@ def main() -> None:
     # Запускаем Telegram бота
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, create_duo_room))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^Играть с другом$"), create_duo_room))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
