@@ -93,6 +93,60 @@ def submit_result_api():
     return jsonify({'success': True})
 
 
+@app.route('/api/create-room', methods=['POST'])
+def create_room_api():
+    """Создать новую комнату"""
+    data = request.json
+    player_id = data.get('player_id')
+
+    if not player_id:
+        return jsonify({'error': 'Missing player_id'}), 400
+
+    room_id = create_room()
+    join_room(room_id, player_id)
+
+    # Формируем URL для приглашения
+    invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
+
+    return jsonify({
+        'success': True,
+        'room_id': room_id,
+        'invite_url': invite_url
+    })
+
+
+@app.route('/api/ready-next', methods=['POST'])
+def ready_next_round_api():
+    """Игрок готов к следующему раунду"""
+    data = request.json
+    room_id = data.get('room_id')
+    player_id = data.get('player_id')
+
+    if not all([room_id, player_id]):
+        return jsonify({'error': 'Missing data'}), 400
+
+    if room_id not in rooms:
+        return jsonify({'error': 'Room not found'}), 404
+
+    room = rooms[room_id]
+    if 'ready_next' not in room:
+        room['ready_next'] = []
+
+    if player_id not in room['ready_next']:
+        room['ready_next'].append(player_id)
+
+    # Если оба игрока готовы - генерируем новый цвет
+    if len(room['ready_next']) == 2:
+        room['target_color'] = {
+            'hue': random.randint(0, 360),
+            'lightness': random.randint(0, 80)
+        }
+        room['ready_next'] = []
+        room['results'] = {}  # Очищаем результаты для нового раунда
+
+    return jsonify({'success': True})
+
+
 def run_flask():
     """Запустить Flask сервер в отдельном потоке"""
     # На Railway используем порт из переменной окружения
@@ -188,36 +242,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    room_id = create_room()
-    player_id = str(update.effective_user.id)
-    join_room(room_id, player_id)
-
-    duo_url = f"{versioned_url(WEB_APP_URL)}?room={room_id}&api={API_URL}"
-    logging.info(f"Room created: {room_id}, API_URL: {API_URL}")
-
-    invite_button = KeyboardButton(
-        "🎮 Присоединиться к игре",
-        web_app=WebAppInfo(url=duo_url),
-    )
-    invite_keyboard = ReplyKeyboardMarkup([[invite_button]], resize_keyboard=True)
-
-    await update.message.reply_text(
-        "🎮 Комната создана! Перешли это сообщение другу.",
-        reply_markup=invite_keyboard,
-    )
-
-
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         data = json.loads(update.message.web_app_data.data)
     except json.JSONDecodeError:
         await update.message.reply_text("Не смог прочитать результат игры.")
-        return
-
-    # Обработка запроса на многопользовательский режим
-    if isinstance(data, dict) and data.get("action") == "multiplayer":
-        await create_duo_room(update, context)
         return
 
     # Обработка результатов игры

@@ -1,9 +1,13 @@
 const tg = window.Telegram?.WebApp;
 
 const modeSelection = document.getElementById("modeSelection");
+const inviteScreen = document.getElementById("inviteScreen");
 const gameSection = document.getElementById("gameSection");
 const soloModeButton = document.getElementById("soloModeButton");
 const multiplayerModeButton = document.getElementById("multiplayerModeButton");
+const inviteLink = document.getElementById("inviteLink");
+const copyButton = document.getElementById("copyButton");
+const waitingText = document.getElementById("waitingText");
 
 const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
@@ -62,12 +66,12 @@ function randomLightness() {
 }
 
 // API функции для многопользовательского режима
-async function joinRoom() {
+async function joinRoomApi(room_id, player_id) {
     try {
         const response = await fetch(`${apiUrl}/api/join`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ room_id: roomId, player_id: playerId })
+            body: JSON.stringify({ room_id, player_id })
         });
         return await response.json();
     } catch (error) {
@@ -100,25 +104,21 @@ async function submitResultToAPI(result) {
     }
 }
 
-function startMultiplayerGame() {
-    // Показываем ожидание
-    stageLabel.textContent = "Ожидание соперника...";
-    timer.textContent = "...";
-    controls.hidden = true;
-    result.hidden = true;
-    targetColor.classList.add("hidden-color");
-
-    // Подключаемся к комнате
-    joinRoom().then(data => {
-        if (data.error) {
-            stageLabel.textContent = "Ошибка подключения";
-            return;
-        }
-
-        // Начинаем опрос статуса комнаты
-        pollingId = setInterval(checkRoomStatus, 1000);
-    });
+async function readyForNextRound() {
+    try {
+        const response = await fetch(`${apiUrl}/api/ready-next`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room_id: roomId, player_id: playerId })
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error ready for next round:', error);
+        return { error: 'Failed to ready' };
+    }
 }
+
+
 
 async function checkRoomStatus() {
     const room = await getRoomStatus();
@@ -129,7 +129,12 @@ async function checkRoomStatus() {
         clearInterval(pollingId);
         targetHue = room.target_color.hue;
         targetLightness = room.target_color.lightness;
+        showGame();
         startRound();
+    } else if (room.status === 'waiting') {
+        // Обновляем текст ожидания
+        const playerCount = room.players ? room.players.length : 0;
+        waitingText.textContent = `Ожидание второго игрока... (${playerCount}/2)`;
     }
 }
 
@@ -154,11 +159,25 @@ function resetSliders() {
 
 function showModeSelection() {
     modeSelection.hidden = false;
+    inviteScreen.hidden = true;
     gameSection.hidden = true;
+}
+
+function showInviteScreen(url) {
+    modeSelection.hidden = true;
+    inviteScreen.hidden = false;
+    gameSection.hidden = true;
+
+    inviteLink.value = url;
+    waitingText.textContent = "Ожидание второго игрока...";
+
+    // Начинаем опрос статуса комнаты
+    pollingId = setInterval(checkRoomStatus, 1000);
 }
 
 function showGame() {
     modeSelection.hidden = true;
+    inviteScreen.hidden = true;
     gameSection.hidden = false;
 }
 
@@ -168,12 +187,34 @@ function startSoloGame() {
     startRound();
 }
 
-function startMultiplayerGameFromUI() {
-    // Если открыто в Telegram, отправляем запрос боту для создания комнаты
-    if (tg) {
-        tg.sendData(JSON.stringify({ action: "multiplayer" }));
-    } else {
-        alert("Многопользовательский режим доступен только в Telegram");
+async function startMultiplayerGameFromUI() {
+    if (!apiUrl) {
+        alert("Многопользовательский режим недоступен - нет API URL");
+        return;
+    }
+
+    // Создаем комнату через API
+    try {
+        const response = await fetch(`${apiUrl}/api/create-room`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_id: playerId })
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            alert("Ошибка создания комнаты: " + data.error);
+            return;
+        }
+
+        roomId = data.room_id;
+        isMultiplayer = true;
+
+        // Показываем экран приглашения
+        showInviteScreen(data.invite_url);
+    } catch (error) {
+        console.error('Error creating room:', error);
+        alert("Ошибка соединения с сервером");
     }
 }
 
@@ -181,8 +222,11 @@ function startRound() {
   clearInterval(countdownId);
   lastResult = null;
 
-  targetHue = Math.floor(Math.random() * 361);
-  targetLightness = randomLightness();
+  // В многопользовательском режиме цвет уже задан через API
+  if (!isMultiplayer) {
+    targetHue = Math.floor(Math.random() * 361);
+    targetLightness = randomLightness();
+  }
 
   resetSliders();
 
@@ -241,11 +285,11 @@ function submitGuess() {
     lightnessDiff,
   };
 
-  // В многопользовательском режиме отправляем результат в API
+  // В многопользовательском режиме отправляем результат в API и показываем сравнение
   if (isMultiplayer) {
     submitResultToAPI(lastResult);
-    // Проверяем результаты соперника
-    setTimeout(checkOpponentResult, 2000);
+    // Показываем результат сравнения
+    setTimeout(checkOpponentResult, 1000);
   }
   // В обычном режиме результат только в приложении, не отправляем в бота
 }
@@ -271,17 +315,54 @@ async function checkOpponentResult() {
     } else {
         // Соперник еще не закончил
         resultText.textContent = "Ожидание результата соперника...";
-        setTimeout(checkOpponentResult, 2000);
+        setTimeout(checkOpponentResult, 1000);
     }
+}
+
+async function startNextRoundMultiplayer() {
+    resultText.textContent = "Ожидание соперника...";
+    againButton.disabled = true;
+
+    await readyForNextRound();
+
+    // Опрашиваем статус комнаты пока не появится новый цвет
+    pollingId = setInterval(async () => {
+        const room = await getRoomStatus();
+        if (room && room.target_color) {
+            // Проверяем, изменился ли цвет (новый раунд)
+            const newColor = room.target_color;
+            if (newColor.hue !== targetHue || newColor.lightness !== targetLightness) {
+                clearInterval(pollingId);
+                targetHue = newColor.hue;
+                targetLightness = newColor.lightness;
+                againButton.disabled = false;
+                startRound();
+            }
+        }
+    }, 500);
 }
 
 hueSlider.addEventListener("input", updateGuessPreview);
 lightnessSlider.addEventListener("input", updateGuessPreview);
 submitButton.addEventListener("click", submitGuess);
-againButton.addEventListener("click", startRound);
+againButton.addEventListener("click", () => {
+    if (isMultiplayer) {
+        startNextRoundMultiplayer();
+    } else {
+        startRound();
+    }
+});
 
 soloModeButton.addEventListener("click", startSoloGame);
 multiplayerModeButton.addEventListener("click", startMultiplayerGameFromUI);
+copyButton.addEventListener("click", () => {
+    inviteLink.select();
+    document.execCommand('copy');
+    copyButton.textContent = "Скопировано!";
+    setTimeout(() => {
+        copyButton.textContent = "Копировать";
+    }, 2000);
+});
 
 if (tg) {
   tg.ready();
@@ -291,11 +372,30 @@ if (tg) {
 // Запускаем нужный режим игры
 console.log('Starting app. isMultiplayer:', isMultiplayer, 'roomId:', roomId, 'tg:', !!tg);
 
-if (isMultiplayer) {
-    // Если уже есть параметры комнаты - запускаем многопользовательскую игру
-    console.log('Starting multiplayer game');
-    showGame();
-    startMultiplayerGame();
+if (isMultiplayer && roomId) {
+    // Если уже есть параметры комнаты - присоединяемся и проверяем статус
+    console.log('Joining existing room');
+    joinRoomApi(roomId, playerId).then(data => {
+        if (data.error) {
+            console.error('Error joining room:', data.error);
+            showModeSelection();
+            return;
+        }
+
+        getRoomStatus().then(room => {
+            if (room && room.status === 'ready' && room.target_color) {
+                // Комната готова - начинаем игру
+                targetHue = room.target_color.hue;
+                targetLightness = room.target_color.lightness;
+                showGame();
+                startRound();
+            } else {
+                // Комната в ожидании - показываем экран приглашения
+                const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${apiUrl}`;
+                showInviteScreen(inviteUrl);
+            }
+        });
+    });
 } else if (roomId && !tg) {
     // Если есть параметры комнаты но не открыт в Telegram
     console.log('Room params but no Telegram');
@@ -312,7 +412,7 @@ if (isMultiplayer) {
 
 // Fallback: если через 1 секунду ничего не показалось, запускаем обычную игру
 setTimeout(() => {
-    if (modeSelection.hidden && gameSection.hidden) {
+    if (modeSelection.hidden && gameSection.hidden && inviteScreen.hidden) {
         console.log('Fallback: nothing shown, starting solo game');
         startSoloGame();
     }

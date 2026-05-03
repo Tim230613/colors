@@ -9,6 +9,23 @@
   </head>
   <body>
     <main class="app">
+      <section class="invite-screen" id="inviteScreen" hidden>
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Color Memory</p>
+            <h1>Пригласи друга</h1>
+          </div>
+        </div>
+        <div class="invite-content">
+          <p class="invite-text">Отправь эту ссылку другу:</p>
+          <div class="invite-link-container">
+            <input id="inviteLink" type="text" readonly class="invite-link">
+            <button id="copyButton" class="copy-button">Копировать</button>
+          </div>
+          <p class="waiting-text" id="waitingText">Ожидание второго игрока...</p>
+        </div>
+      </section>
+
       <section class="mode-selection" id="modeSelection" hidden>
         <div class="topbar">
           <div>
