@@ -9,7 +9,28 @@
   </head>
   <body>
     <main class="app">
-      <section class="game">
+      <section class="mode-selection" id="modeSelection">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Color Memory</p>
+            <h1>Выбери режим</h1>
+          </div>
+        </div>
+        <div class="mode-buttons">
+          <button id="soloModeButton" class="mode-button">
+            <span class="mode-icon">👤</span>
+            <span class="mode-title">Играть одной</span>
+            <span class="mode-desc">Тренируй память в одиночку</span>
+          </button>
+          <button id="multiplayerModeButton" class="mode-button">
+            <span class="mode-icon">👥</span>
+            <span class="mode-title">Играть с другом</span>
+            <span class="mode-desc">Соревнуйся с друзьями</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="game" id="gameSection" hidden>
         <div class="topbar">
           <div>
             <p class="eyebrow">Color Memory</p>

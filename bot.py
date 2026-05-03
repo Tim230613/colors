@@ -180,26 +180,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         web_app=WebAppInfo(url=solo_url),
     )
 
-    # Кнопка для создания комнаты с другом (без мини-апп)
-    duo_button = KeyboardButton(
-        "Играть с другом",
-    )
-
-    keyboard = ReplyKeyboardMarkup([[solo_button], [duo_button]], resize_keyboard=True)
+    keyboard = ReplyKeyboardMarkup([[solo_button]], resize_keyboard=True)
 
     await update.message.reply_text(
-        "Готов сыграть? Выбери режим игры:",
+        "Готов сыграть? Нажми кнопку для запуска игры:",
         reply_markup=keyboard,
     )
 
 
 async def create_duo_room(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = update.message.text if update.message else ""
-    logging.info(f"create_duo_room called, text: '{text}'")
-
-    if text != "Играть с другом":
-        return
-
     room_id = create_room()
     player_id = str(update.effective_user.id)
     join_room(room_id, player_id)
@@ -226,6 +215,12 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Не смог прочитать результат игры.")
         return
 
+    # Обработка запроса на многопользовательский режим
+    if data == "multiplayer":
+        await create_duo_room(update, context)
+        return
+
+    # Обработка результатов игры
     score = data.get("score", 0)
     hue_diff = data.get("hueDiff", 0)
     lightness_diff = data.get("lightnessDiff", 0)
@@ -249,7 +244,6 @@ def main() -> None:
     # Запускаем Telegram бота
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT, create_duo_room))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

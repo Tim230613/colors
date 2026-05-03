@@ -1,5 +1,10 @@
 const tg = window.Telegram?.WebApp;
 
+const modeSelection = document.getElementById("modeSelection");
+const gameSection = document.getElementById("gameSection");
+const soloModeButton = document.getElementById("soloModeButton");
+const multiplayerModeButton = document.getElementById("multiplayerModeButton");
+
 const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
 const timer = document.getElementById("timer");
@@ -147,6 +152,31 @@ function resetSliders() {
   updateGuessPreview();
 }
 
+function showModeSelection() {
+    modeSelection.hidden = false;
+    gameSection.hidden = true;
+}
+
+function showGame() {
+    modeSelection.hidden = true;
+    gameSection.hidden = false;
+}
+
+function startSoloGame() {
+    isMultiplayer = false;
+    showGame();
+    startRound();
+}
+
+function startMultiplayerGameFromUI() {
+    // Если открыто в Telegram, отправляем запрос боту для создания комнаты
+    if (tg) {
+        tg.sendData("multiplayer");
+    } else {
+        alert("Многопользовательский режим доступен только в Telegram");
+    }
+}
+
 function startRound() {
   clearInterval(countdownId);
   lastResult = null;
@@ -250,6 +280,9 @@ lightnessSlider.addEventListener("input", updateGuessPreview);
 submitButton.addEventListener("click", submitGuess);
 againButton.addEventListener("click", startRound);
 
+soloModeButton.addEventListener("click", startSoloGame);
+multiplayerModeButton.addEventListener("click", startMultiplayerGameFromUI);
+
 if (tg) {
   tg.ready();
   tg.expand();
@@ -257,6 +290,8 @@ if (tg) {
 
 // Запускаем нужный режим игры
 if (isMultiplayer) {
+    // Если уже есть параметры комнаты - запускаем многопользовательскую игру
+    showGame();
     startMultiplayerGame();
 } else if (roomId && !tg) {
     // Если есть параметры комнаты но не открыт в Telegram
@@ -266,5 +301,6 @@ if (isMultiplayer) {
     controls.hidden = true;
     result.hidden = true;
 } else {
-    startRound();
+    // Показываем экран выбора режима
+    showModeSelection();
 }
