@@ -372,8 +372,22 @@ if (tg) {
 
 // Запускаем нужный режим игры
 const urlParams = new URLSearchParams(window.location.search);
-roomId = urlParams.get('room');
-apiUrl = urlParams.get('api') || 'https://colors-production-4484.up.railway.app';
+let roomId = urlParams.get('room');
+let apiUrl = urlParams.get('api') || 'https://colors-production-4484.up.railway.app';
+
+// В Telegram WebApp параметры могут быть в initData
+if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+    try {
+        const startParam = JSON.parse(tg.initDataUnsafe.start_param);
+        if (startParam.room) roomId = startParam.room;
+        if (startParam.api) apiUrl = startParam.api;
+        console.log('Параметры из Telegram start_param:', startParam);
+    } catch (e) {
+        console.log('Ошибка парсинга start_param:', e);
+    }
+}
+
+console.log('Финальные параметры:', { roomId, apiUrl, isTelegram: !!tg });
 
 if (roomId) {
     // Если есть параметры комнаты - многопользовательский режим

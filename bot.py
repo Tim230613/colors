@@ -261,14 +261,18 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         room_id = create_room()
         join_room(room_id, player_id)
 
-        # Формируем URL для приглашения
-        invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
+        # Формируем параметры для Telegram WebApp
+        start_param = json.dumps({"room": room_id, "api": API_URL})
+
+        # Формируем URL для приглашения (для веб версии)
+        web_invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
 
         await update.message.reply_text(
             f"Комната создана!\n\n"
-            f"Отправь эту ссылку другу:\n{invite_url}\n\n"
-            f"Или перешли ему это сообщение.",
-            reply_markup=ReplyKeyboardMarkup([[KeyboardButton("Играть", web_app=WebAppInfo(url=invite_url))]], resize_keyboard=True)
+            f"Перешли это сообщение другу:",
+            reply_markup=ReplyKeyboardMarkup([[
+                KeyboardButton("Играть с другом", web_app=WebAppInfo(url=WEB_APP_URL, start_param=start_param))
+            ]], resize_keyboard=True)
         )
         return
 
