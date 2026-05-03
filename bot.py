@@ -216,7 +216,7 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     # Обработка запроса на многопользовательский режим
-    if data == "multiplayer":
+    if isinstance(data, dict) and data.get("action") == "multiplayer":
         await create_duo_room(update, context)
         return
 

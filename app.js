@@ -171,7 +171,7 @@ function startSoloGame() {
 function startMultiplayerGameFromUI() {
     // Если открыто в Telegram, отправляем запрос боту для создания комнаты
     if (tg) {
-        tg.sendData("multiplayer");
+        tg.sendData(JSON.stringify({ action: "multiplayer" }));
     } else {
         alert("Многопользовательский режим доступен только в Telegram");
     }
