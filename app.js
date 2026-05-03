@@ -30,9 +30,14 @@ const urlParams = new URLSearchParams(window.location.search);
 roomId = urlParams.get('room');
 apiUrl = urlParams.get('api');
 
+console.log('URL params:', { roomId, apiUrl, fullUrl: window.location.href });
+
 if (roomId && apiUrl) {
     isMultiplayer = true;
     playerId = Math.random().toString(36).substr(2, 9);
+    console.log('Multiplayer mode enabled:', { roomId, apiUrl, playerId });
+} else {
+    console.log('Single player mode');
 }
 
 function colorFromHsl(hue, lightness) {
@@ -208,16 +213,8 @@ function submitGuess() {
     submitResultToAPI(lastResult);
     // Проверяем результаты соперника
     setTimeout(checkOpponentResult, 2000);
-  } else {
-    // Отправляем результат в бот если открыто в Telegram
-    if (tg) {
-      tg.sendData(JSON.stringify({
-        score: score,
-        hueDiff: Math.round(hueDiff),
-        lightnessDiff: lightnessDiff
-      }));
-    }
   }
+  // В обычном режиме результат только в приложении, не отправляем в бота
 }
 
 async function checkOpponentResult() {
