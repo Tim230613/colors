@@ -248,7 +248,28 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     try:
         data = json.loads(update.message.web_app_data.data)
     except json.JSONDecodeError:
-        await update.message.reply_text("Не смог прочитать результат игры.")
+        await update.message.reply_text("Не смог прочитать данные.")
+        return
+
+    # Обработка действия создания комнаты
+    action = data.get("action")
+    if action == "create_multiplayer_room":
+        # Генерируем player ID
+        player_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=9))
+
+        # Создаем комнату
+        room_id = create_room()
+        join_room(room_id, player_id)
+
+        # Формируем URL для приглашения
+        invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
+
+        await update.message.reply_text(
+            f"Комната создана!\n\n"
+            f"Отправь эту ссылку другу:\n{invite_url}\n\n"
+            f"Или перешли ему это сообщение.",
+            reply_markup=ReplyKeyboardMarkup([[KeyboardButton("Играть", web_app=WebAppInfo(url=invite_url))]], resize_keyboard=True)
+        )
         return
 
     # Обработка результатов игры

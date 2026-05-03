@@ -32,6 +32,7 @@ python -m http.server 8000 --bind 127.0.0.1
 4. Запустить: `python bot.py`
 
 ## История изменений
+- 2026-05-03 20:50: Исправлена кнопка "Играть с другом" - добавлены недостающие переменные в app.js (inviteScreen, inviteLink, waitingText, copyButton, roomId, apiUrl, playerId, pollingId), реализованы функции API (startMultiplayerGameFromUI, joinRoomApi, getRoomStatus, submitResultToAPI, checkRoomStatus), добавлен обработчик action="create_multiplayer_room" в bot.py, установлен flask-cors. Теперь многопользовательский режим работает корректно через HTTP API
 - 2026-05-03 20:00: Исправлены проблемы деплоя на Railway - убран WebSocket (flask-socketio, python-socketio, eventlet) из-за конфликтов с threading. Возвращён HTTP API с polling для многопользовательского режима. Это решает проблемы деплоя и должно работать стабильно на Railway
 - 2026-05-03 19:45: Реализован многопользовательский режим через WebSocket. Добавлены flask-socketio, python-socketio, eventlet. Настроен WebSocket сервер с SocketIO. Реализованы события: join_game, submit_result, game_start, round_complete, new_round. Обновлён клиент для использования WebSocket вместо HTTP API. WebSocket решает проблемы с CORS и обеспечивает реальное время
 - 2026-05-03 19:30: Временно убран многопользовательский режим из-за проблем с API соединением (CORS и доступность). Оставлен только стабильный одиночный режим. Flask сервер и функции комнат оставлены для будущего использования когда API будет настроен

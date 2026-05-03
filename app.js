@@ -1,13 +1,13 @@
 const tg = window.Telegram?.WebApp;
 
 const modeSelection = document.getElementById("modeSelection");
-const inviteScreen = document.getElementById("inviteScreen");
 const gameSection = document.getElementById("gameSection");
 const soloModeButton = document.getElementById("soloModeButton");
 const multiplayerModeButton = document.getElementById("multiplayerModeButton");
+const inviteScreen = document.getElementById("inviteScreen");
 const inviteLink = document.getElementById("inviteLink");
-const copyButton = document.getElementById("copyButton");
 const waitingText = document.getElementById("waitingText");
+const copyButton = document.getElementById("copyButton");
 
 const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
@@ -27,17 +27,12 @@ let targetLightness = 54;
 let countdownId = null;
 let lastResult = null;
 
-// Многопользовательский режим через HTTP API
+// Многопользовательский режим через бота
 let isMultiplayer = false;
 let roomId = null;
-let playerId = null;
 let apiUrl = null;
+let playerId = null;
 let pollingId = null;
-
-// Получаем параметры из URL
-const urlParams = new URLSearchParams(window.location.search);
-roomId = urlParams.get('room');
-apiUrl = urlParams.get('api');
 
 function colorFromHsl(hue, lightness) {
   return `hsl(${hue}, 82%, ${lightness}%)`;
@@ -50,65 +45,6 @@ function circularHueDiff(a, b) {
 
 function randomLightness() {
   return Math.floor(Math.random() * 81);
-}
-
-// API функции для многопользовательского режима
-async function joinRoomApi(room_id, player_id) {
-    try {
-        const effectiveApiUrl = apiUrl || window.location.origin;
-        const response = await fetch(`${effectiveApiUrl}/api/join`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ room_id, player_id })
-        });
-        return await response.json();
-    } catch (error) {
-        console.error('Error joining room:', error);
-        return { error: 'Failed to connect' };
-    }
-}
-
-async function getRoomStatus() {
-    try {
-        const effectiveApiUrl = apiUrl || window.location.origin;
-        const response = await fetch(`${effectiveApiUrl}/api/room/${roomId}`);
-        return await response.json();
-    } catch (error) {
-        console.error('Error getting room status:', error);
-        return null;
-    }
-}
-
-async function submitResultToAPI(result) {
-    try {
-        const effectiveApiUrl = apiUrl || window.location.origin;
-        const response = await fetch(`${effectiveApiUrl}/api/result`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ room_id: roomId, player_id: playerId, result })
-        });
-        return await response.json();
-    } catch (error) {
-        console.error('Error submitting result:', error);
-        return { error: 'Failed to submit' };
-    }
-}
-
-function checkRoomStatus() {
-    getRoomStatus().then(room => {
-        if (!room) return;
-
-        if (room.status === 'ready' && room.target_color) {
-            clearInterval(pollingId);
-            targetHue = room.target_color.hue;
-            targetLightness = room.target_color.lightness;
-            showGame();
-            startRound();
-        } else if (room.status === 'waiting') {
-            const playerCount = room.players ? room.players.length : 0;
-            waitingText.textContent = `Ожидание второго игрока... (${playerCount}/2)`;
-        }
-    });
 }
 
 function updateGuessPreview() {
@@ -161,38 +97,80 @@ function startSoloGame() {
 }
 
 async function startMultiplayerGameFromUI() {
-    if (!apiUrl) {
-        apiUrl = window.location.origin;
-    }
+    // Получаем API URL из параметров или используем текущий хост
+    const urlParams = new URLSearchParams(window.location.search);
+    apiUrl = urlParams.get('api') || `${window.location.protocol}//${window.location.host}`;
 
-    // Генерируем ID комнаты и игрока
-    roomId = Math.random().toString(36).substr(2, 6);
+    // Генерируем player ID
     playerId = Math.random().toString(36).substr(2, 9);
-    isMultiplayer = true;
 
-    // Создаем комнату через API
     try {
+        // Создаем комнату через API
         const response = await fetch(`${apiUrl}/api/create-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ player_id: playerId })
         });
+
         const data = await response.json();
 
-        if (data.error) {
-            alert("Ошибка создания комнаты: " + data.error);
+        if (data.success) {
+            roomId = data.room_id;
+            const inviteUrl = data.invite_url;
+            showInviteScreen(inviteUrl);
+        } else {
+            alert('Ошибка создания комнаты: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    } catch (error) {
+        console.error('Ошибка создания комнаты:', error);
+        alert('Ошибка соединения с сервером. Проверьте интернет-соединение.');
+    }
+}
+
+function joinRoomApi(roomId, playerId) {
+    return fetch(`${apiUrl}/api/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_id: roomId, player_id: playerId })
+    }).then(response => response.json());
+}
+
+function getRoomStatus() {
+    return fetch(`${apiUrl}/api/room/${roomId}`)
+        .then(response => response.json())
+        .catch(error => {
+            console.error('Ошибка получения статуса комнаты:', error);
+            return null;
+        });
+}
+
+function submitResultToAPI(result) {
+    fetch(`${apiUrl}/api/result`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_id: roomId, player_id: playerId, result: result })
+    }).catch(error => {
+        console.error('Ошибка отправки результата:', error);
+    });
+}
+
+function checkRoomStatus() {
+    getRoomStatus().then(room => {
+        if (!room) {
+            clearInterval(pollingId);
+            alert('Ошибка соединения с сервером');
+            showModeSelection();
             return;
         }
 
-        roomId = data.room_id;
-
-        // Формируем ссылку для приглашения
-        const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}&api=${encodeURIComponent(apiUrl)}`;
-        showInviteScreen(inviteUrl);
-    } catch (error) {
-        console.error('Error creating room:', error);
-        alert("Ошибка соединения с сервером");
-    }
+        if (room.status === 'ready' && room.target_color) {
+            clearInterval(pollingId);
+            targetHue = room.target_color.hue;
+            targetLightness = room.target_color.lightness;
+            showGame();
+            startRound();
+        }
+    });
 }
 
 function startRound() {
