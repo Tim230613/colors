@@ -239,6 +239,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = ReplyKeyboardMarkup([[solo_button]], resize_keyboard=True)
 
     await update.message.reply_text(
+        "🎮 Color Memory\n\n"
         "Готов сыграть? Нажми кнопку для запуска игры:",
         reply_markup=keyboard,
     )
@@ -278,11 +279,9 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         try:
             await update.message.reply_text(
-                f"Комната создана!\n\n"
-                f"Перешли это сообщение другу:",
-                reply_markup=ReplyKeyboardMarkup([[
-                    KeyboardButton("Играть с другом", web_app=WebAppInfo(url=WEB_APP_URL, start_param=start_param))
-                ]], resize_keyboard=True)
+                f"🎮 Комната создана!\n\n"
+                f"🔗 Ссылка для друга:\n{web_invite_url}\n\n"
+                f"Отправь эту ссылку другу чтобы играть вместе!"
             )
             logging.info("Reply sent successfully")
         except Exception as e:
