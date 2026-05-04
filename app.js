@@ -132,8 +132,8 @@ async function startMultiplayerGameFromUI() {
         try {
             tg.sendData(JSON.stringify({ action: "create_multiplayer_room", player_id: playerId }));
             console.log('Data sent to bot successfully');
-            // Показываем сообщение что нужно ждать ответа бота
-            alert('Команда отправлена боту. Пожалуйста, подождите ответа...');
+            // После отправки данных мини-апп должен закрыться
+            tg.close();
         } catch (error) {
             console.error('Error sending data to bot:', error);
             alert('Ошибка отправки команды боту');
