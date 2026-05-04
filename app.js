@@ -18,6 +18,11 @@ console.log('Elements found:', {
   multiplayerModeButton: !!multiplayerModeButton
 });
 
+// Скрываем кнопку мультиплеера в Telegram
+if (tg && multiplayerModeButton) {
+    multiplayerModeButton.style.display = 'none';
+}
+
 const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
 const timer = document.getElementById("timer");
@@ -123,49 +128,38 @@ function startSoloGame() {
 async function startMultiplayerGameFromUI() {
     console.log('startMultiplayerGameFromUI called, isTelegram:', !!tg);
 
-    // В Telegram используем бота для создания комнаты
+    // В Telegram мультиплеер временно недоступен
     if (tg) {
-        console.log('Using Telegram bot for multiplayer');
-        playerId = Math.random().toString(36).substr(2, 9);
-        console.log('Sending data to bot:', { action: "create_multiplayer_room", player_id: playerId });
+        alert('Мультиплеер в Telegram временно недоступен. Используйте веб-версию для игры с друзьями.');
+        return;
+    }
 
-        try {
-            tg.sendData(JSON.stringify({ action: "create_multiplayer_room", player_id: playerId }));
-            console.log('Data sent to bot successfully');
-            // После отправки данных мини-апп должен закрыться
-            tg.close();
-        } catch (error) {
-            console.error('Error sending data to bot:', error);
-            alert('Ошибка отправки команды боту');
+    // Для веб версии создаем комнату напрямую
+    apiUrl = 'https://colors-production-4484.up.railway.app';
+    playerId = Math.random().toString(36).substr(2, 9);
+    console.log('Создание комнаты (веб версия), player ID:', playerId);
+
+    try {
+        const response = await fetch(`${apiUrl}/api/create-room`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_id: playerId })
+        });
+
+        const data = await response.json();
+        console.log('Ответ сервера:', data);
+
+        if (data.success) {
+            roomId = data.room_id;
+            const inviteUrl = data.invite_url;
+            console.log('Комната создана:', roomId, 'Ссылка:', inviteUrl);
+            showInviteScreen(inviteUrl);
+        } else {
+            alert('Ошибка создания комнаты: ' + (data.error || 'Неизвестная ошибка'));
         }
-    } else {
-        // Для веб версии создаем комнату напрямую
-        apiUrl = 'https://colors-production-4484.up.railway.app';
-        playerId = Math.random().toString(36).substr(2, 9);
-        console.log('Создание комнаты (веб версия), player ID:', playerId);
-
-        try {
-            const response = await fetch(`${apiUrl}/api/create-room`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ player_id: playerId })
-            });
-
-            const data = await response.json();
-            console.log('Ответ сервера:', data);
-
-            if (data.success) {
-                roomId = data.room_id;
-                const inviteUrl = data.invite_url;
-                console.log('Комната создана:', roomId, 'Ссылка:', inviteUrl);
-                showInviteScreen(inviteUrl);
-            } else {
-                alert('Ошибка создания комнаты: ' + (data.error || 'Неизвестная ошибка'));
-            }
-        } catch (error) {
-            console.error('Ошибка создания комнаты:', error);
-            alert('Ошибка соединения с сервером. Проверьте интернет-соединение.');
-        }
+    } catch (error) {
+        console.error('Ошибка создания комнаты:', error);
+        alert('Ошибка соединения с сервером. Проверьте интернет-соединение.');
     }
 }
 
