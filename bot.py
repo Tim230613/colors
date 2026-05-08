@@ -316,15 +316,23 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     # Обработка результатов игры
-    score = data.get("score", 0)
-    hue_diff = data.get("hueDiff", 0)
-    lightness_diff = data.get("lightnessDiff", 0)
+    if "score" in data:
+        score = data.get("score", 0)
+        hue_diff = data.get("hueDiff", 0)
+        lightness_diff = data.get("lightnessDiff", 0)
+        await update.message.reply_text(
+            "Результат:\n"
+            f"{score}% точности\n"
+            f"Оттенок: ошибка {hue_diff}°\n"
+            f"Яркость: ошибка {lightness_diff}%"
+        )
+        return
 
+    # Fallback: если action не распознан и нет score — тоже отвечаем
+    logging.warning(f"Неизвестное действие от WebApp: {data}")
     await update.message.reply_text(
-        "Результат:\n"
-        f"{score}% точности\n"
-        f"Оттенок: ошибка {hue_diff}°\n"
-        f"Яркость: ошибка {lightness_diff}%"
+        "🎮 Получил данные, но не понял команду.\n"
+        "Попробуй начать заново через /start"
     )
 
 

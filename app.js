@@ -125,10 +125,18 @@ function startSoloGame() {
 async function startMultiplayerGameFromUI() {
     console.log('startMultiplayerGameFromUI called, isTelegram:', !!tg);
 
-    // В Telegram отправляем запрос боту на создание комнаты и закрываем WebApp
+    // В Telegram отправляем запрос боту на создание комнаты.
+    // sendData() сам закрывает WebApp — tg.close() не нужен и может мешать.
     if (tg) {
-        tg.sendData(JSON.stringify({action: 'create_multiplayer_room'}));
-        tg.close();
+        try {
+            const payload = JSON.stringify({action: 'create_multiplayer_room'});
+            console.log('Отправка данных боту:', payload);
+            tg.sendData(payload);
+            console.log('Данные отправлены');
+        } catch (err) {
+            console.error('Ошибка sendData:', err);
+            alert('Не удалось отправить данные боту. Попробуй еще раз.');
+        }
         return;
     }
 
