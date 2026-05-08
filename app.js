@@ -450,6 +450,7 @@ console.log('Финальные параметры:', { roomId, apiUrl, isTelegr
 
 try {
     if (roomId) {
+    console.log('Есть roomId, пробуем присоединиться к комнате:', roomId);
     // Если есть параметры комнаты - многопользовательский режим
     playerId = Math.random().toString(36).substr(2, 9);
     isMultiplayer = true;
@@ -476,10 +477,12 @@ try {
             }
         }).catch(error => {
             console.error('Ошибка получения статуса комнаты:', error);
+            alert('Ошибка соединения с сервером. Попробуй обновить страницу.\n' + error.message);
             showModeSelection();
         });
     }).catch(error => {
         console.error('Ошибка присоединения к комнате:', error);
+        alert('Не удалось войти в комнату. Возможно, она устарела или сервер недоступен.\n' + error.message);
         showModeSelection();
     });
 } else {
