@@ -103,21 +103,12 @@ function handleRoomUpdate(room) {
             targetLightness = newColor.lightness;
             currentRound = room.round || currentRound + 1;
             againButton.disabled = false;
-            if (tg) {
-                tg.MainButton.hide();
-                tg.MainButton.enable();
-            }
             startRound();
         }
     }
     // Матч окончен
     if (room.match_ended) {
         againButton.disabled = false;
-        if (tg) {
-            tg.MainButton.setText('Новая игра');
-            tg.MainButton.enable();
-            tg.MainButton.show();
-        }
     }
 }
 
@@ -359,9 +350,6 @@ function startRound() {
   countdownId = setInterval(() => {
     secondsLeft -= 1;
     timer.textContent = String(secondsLeft);
-    if (secondsLeft === 1) {
-        hapticLight();
-    }
     if (secondsLeft === 0) {
       clearInterval(countdownId);
       hideTargetColor();
@@ -377,10 +365,6 @@ function hideTargetColor() {
   stageLabel.textContent = "Теперь угадай оттенок и яркость";
   timer.textContent = "?";
   controls.hidden = false;
-  if (tg) {
-    tg.MainButton.setText('Готово');
-    tg.MainButton.show();
-  }
 }
 
 function submitGuess() {
@@ -394,12 +378,6 @@ function submitGuess() {
 
   controls.hidden = true;
   result.hidden = false;
-  if (tg) {
-    tg.MainButton.hide();
-    if (score >= 80) hapticSuccess();
-    else if (score >= 50) hapticLight();
-    else hapticError();
-  }
   targetColor.classList.remove("hidden-color");
   targetColor.style.background = `linear-gradient(90deg, ${colorFromHsl(targetHue, targetLightness)} 0 50%, ${colorFromHsl(guessHue, guessLightness)} 50% 100%)`;
   stageLabel.textContent = "Слева правильный, справа твой";
@@ -425,22 +403,11 @@ function submitGuess() {
     return; // multiplayer handles its own flow
   }
 
-  // Показываем MainButton "Дальше" после результата
-  if (tg) {
-    tg.MainButton.setText('Дальше');
-    tg.MainButton.enable();
-    tg.MainButton.show();
-  }
-
   // Если последний раунд — показываем итоговый результат
   if (currentRound >= maxRounds) {
     const avgScore = Math.round(matchScores.reduce((a, b) => a + b.score, 0) / matchScores.length);
     let bestRound = matchScores.reduce((a, b) => a.score > b.score ? a : b);
     resultText.textContent += `\n🏁 Матч окончен! Средний результат: ${avgScore}% (лучший: ${bestRound.score}% в раунде ${bestRound.round})`;
-    if (tg) {
-      tg.MainButton.setText('Новая игра');
-      tg.MainButton.show();
-    }
   }
 }
 
@@ -468,15 +435,6 @@ function renderOpponentResult(room) {
         const myAvg = Math.round(myTotal / roomMax);
         const oppAvg = Math.round(oppTotal / roomMax);
         resultText.textContent += `\n🏁 Матч окончен! Средний: ${myAvg}% vs ${oppAvg}%`;
-        if (tg) {
-            tg.MainButton.setText('Новая игра');
-            tg.MainButton.enable();
-            tg.MainButton.show();
-        }
-    } else if (tg) {
-        tg.MainButton.setText('Дальше');
-        tg.MainButton.enable();
-        tg.MainButton.show();
     }
     return true;
 }
@@ -498,39 +456,14 @@ function checkOpponentResult() {
     });
 }
 
-let lastHaptic = 0;
-hueSlider.addEventListener("input", () => {
-  updateGuessPreview();
-  const now = Date.now();
-  if (now - lastHaptic > 80) {
-    lastHaptic = now;
-    hapticLight();
-  }
-});
-lightnessSlider.addEventListener("input", () => {
-  updateGuessPreview();
-  const now = Date.now();
-  if (now - lastHaptic > 80) {
-    lastHaptic = now;
-    hapticLight();
-  }
-});
+hueSlider.addEventListener("input", updateGuessPreview);
+lightnessSlider.addEventListener("input", updateGuessPreview);
 submitButton.addEventListener("click", submitGuess);
 
-// Telegram MainButton для "Готово"
-if (tg) {
-  tg.MainButton.onClick(submitGuess);
-}
 function nextRoundHandler() {
-    if (tg) tg.MainButton.hide();
     if (isMultiplayer) {
         resultText.textContent = "Ожидание соперника...";
         againButton.disabled = true;
-        if (tg) {
-            tg.MainButton.setText('Ожидание соперника...');
-            tg.MainButton.show();
-            tg.MainButton.disable();
-        }
         // Отправляем готовность к следующему раунду
         const payload = { room_id: roomId, player_id: playerId };
         if (socket && socket.connected) {
@@ -555,9 +488,6 @@ function nextRoundHandler() {
 }
 
 againButton.addEventListener("click", nextRoundHandler);
-if (tg) {
-  tg.MainButton.onClick(nextRoundHandler);
-}
 
 function checkNewRound() {
     getRoomStatus().then(room => {
@@ -565,11 +495,6 @@ function checkNewRound() {
 
         if (room.match_ended) {
             againButton.disabled = false;
-            if (tg) {
-                tg.MainButton.setText('Новая игра');
-                tg.MainButton.enable();
-                tg.MainButton.show();
-            }
             return;
         }
 
@@ -580,7 +505,6 @@ function checkNewRound() {
                 targetLightness = newColor.lightness;
                 currentRound = room.round || currentRound + 1;
                 againButton.disabled = false;
-                if (tg) tg.MainButton.hide();
                 startRound();
             } else {
                 setTimeout(checkNewRound, 1000);
@@ -608,28 +532,6 @@ copyButton.addEventListener("click", () => {
 if (tg) {
   tg.ready();
   tg.expand();
-  tg.requestFullscreen?.();
-  // MainButton настройки
-  tg.MainButton.setParams({ color: '#0e8a78', text_color: '#ffffff' });
-  tg.MainButton.hide();
-}
-
-function hapticLight() {
-  if (tg?.HapticFeedback) {
-    tg.HapticFeedback.impactOccurred('light');
-  }
-}
-
-function hapticSuccess() {
-  if (tg?.HapticFeedback) {
-    tg.HapticFeedback.notificationOccurred('success');
-  }
-}
-
-function hapticError() {
-  if (tg?.HapticFeedback) {
-    tg.HapticFeedback.notificationOccurred('error');
-  }
 }
 
 // Запускаем нужный режим игры
