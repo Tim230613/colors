@@ -228,6 +228,25 @@ def versioned_url(url):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    args = context.args
+    if args and len(args) > 0:
+        room_id = args[0]
+        invite_url = f"{versioned_url(WEB_APP_URL)}&room={room_id}&api={API_URL}"
+        logging.info(f"Invite URL for room {room_id}: {invite_url}")
+
+        button = KeyboardButton(
+            "Присоединиться к игре",
+            web_app=WebAppInfo(url=invite_url),
+        )
+        keyboard = ReplyKeyboardMarkup([[button]], resize_keyboard=True)
+
+        await update.message.reply_text(
+            "🎮 Тебя пригласили в Color Memory!\n\n"
+            "Нажми кнопку ниже, чтобы присоединиться к игре:",
+            reply_markup=keyboard,
+        )
+        return
+
     solo_url = f"{versioned_url(WEB_APP_URL)}&api={API_URL}"
     logging.info(f"Solo URL: {solo_url}")
 
@@ -269,20 +288,28 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         logging.info(f"Room ID: {room_id}")
         join_room(room_id, player_id)
 
-        # Формируем параметры для Telegram WebApp
-        start_param = json.dumps({"room": room_id, "api": API_URL})
-        logging.info(f"Start param: {start_param}")
+        # Получаем username бота для Telegram-ссылки
+        try:
+            bot_username = context.bot.username
+        except Exception:
+            bot_username = None
 
-        # Формируем URL для приглашения (для веб версии)
+        # Формируем URL для приглашения (веб версия)
         web_invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
         logging.info(f"Web invite URL: {web_invite_url}")
 
+        text = (
+            f"🎮 Комната создана!\n\n"
+            f"🔗 Ссылка для друга (веб):\n{web_invite_url}\n\n"
+        )
+        if bot_username:
+            tg_link = f"https://t.me/{bot_username}?start={room_id}"
+            text += f"📱 Ссылка для Telegram:\n{tg_link}\n\n"
+
+        text += "Отправь ссылку другу, чтобы играть вместе!"
+
         try:
-            await update.message.reply_text(
-                f"🎮 Комната создана!\n\n"
-                f"🔗 Ссылка для друга:\n{web_invite_url}\n\n"
-                f"Отправь эту ссылку другу чтобы играть вместе!"
-            )
+            await update.message.reply_text(text)
             logging.info("Reply sent successfully")
         except Exception as e:
             logging.error(f"Error sending reply: {e}")

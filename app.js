@@ -18,10 +18,7 @@ console.log('Elements found:', {
   multiplayerModeButton: !!multiplayerModeButton
 });
 
-// Скрываем кнопку мультиплеера в Telegram
-if (tg && multiplayerModeButton) {
-    multiplayerModeButton.style.display = 'none';
-}
+// Кнопка мультиплеера доступна и в Telegram, и в веб-версии
 
 const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
@@ -128,9 +125,10 @@ function startSoloGame() {
 async function startMultiplayerGameFromUI() {
     console.log('startMultiplayerGameFromUI called, isTelegram:', !!tg);
 
-    // В Telegram мультиплеер временно недоступен
+    // В Telegram отправляем запрос боту на создание комнаты и закрываем WebApp
     if (tg) {
-        alert('Мультиплеер в Telegram временно недоступен. Используйте веб-версию для игры с друзьями.');
+        tg.sendData(JSON.stringify({action: 'create_multiplayer_room'}));
+        tg.close();
         return;
     }
 
@@ -417,15 +415,20 @@ const urlParams = new URLSearchParams(window.location.search);
 roomId = urlParams.get('room');
 apiUrl = urlParams.get('api') || 'https://colors-production-4484.up.railway.app';
 
-// В Telegram WebApp параметры могут быть в initData
+// В Telegram WebApp параметры могут быть в initDataUnsafe.start_param
+// (например, при открытии через t.me/bot?startapp=ROOM_ID или из URL)
 if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+    const startParam = tg.initDataUnsafe.start_param;
+    console.log('Получен start_param:', startParam);
     try {
-        const startParam = JSON.parse(tg.initDataUnsafe.start_param);
-        if (startParam.room) roomId = startParam.room;
-        if (startParam.api) apiUrl = startParam.api;
-        console.log('Параметры из Telegram start_param:', startParam);
+        const parsed = JSON.parse(startParam);
+        if (parsed.room) roomId = parsed.room;
+        if (parsed.api) apiUrl = parsed.api;
+        console.log('Параметры из Telegram start_param (JSON):', parsed);
     } catch (e) {
-        console.log('Ошибка парсинга start_param:', e);
+        // Если не JSON — используем как room_id (строка)
+        roomId = startParam;
+        console.log('Используем start_param как room_id:', roomId);
     }
 }
 
