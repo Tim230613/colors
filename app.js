@@ -25,6 +25,7 @@ const stageLabel = document.getElementById("stageLabel");
 const timer = document.getElementById("timer");
 const controls = document.getElementById("controls");
 const gameTitle = document.getElementById("gameTitle");
+const roundInfo = document.getElementById("roundInfo");
 const hueSlider = document.getElementById("hueSlider");
 const lightnessSlider = document.getElementById("lightnessSlider");
 const guessPreview = document.getElementById("guessPreview");
@@ -39,12 +40,86 @@ let targetLightness = 54;
 let countdownId = null;
 let lastResult = null;
 
+// Мультираунды
+let currentRound = 1;
+const maxRounds = 3;
+let matchScores = []; // { round, score }
+
 // Многопользовательский режим через бота
 let isMultiplayer = false;
 let roomId = null;
 let apiUrl = null;
 let playerId = null;
 let pollingId = null;
+let socket = null;
+
+function connectSocket() {
+    if (!apiUrl || socket) return;
+    try {
+        const url = new URL(apiUrl);
+        socket = io(url.origin, { path: '/socket.io/', transports: ['websocket', 'polling'] });
+        socket.on('connect', () => {
+            console.log('Socket connected');
+            if (roomId && playerId) {
+                socket.emit('join_room_socket', { room_id: roomId, player_id: playerId });
+            }
+        });
+        socket.on('room_update', (room) => {
+            console.log('Socket room_update:', room);
+            handleRoomUpdate(room);
+        });
+        socket.on('disconnect', () => {
+            console.log('Socket disconnected');
+        });
+    } catch (e) {
+        console.error('Socket connect error:', e);
+    }
+}
+
+function handleRoomUpdate(room) {
+    // Приглашение: если комната готова — запускаем игру
+    if (inviteScreen && !inviteScreen.hidden && room.status === 'ready' && room.target_color) {
+        clearInterval(pollingId);
+        targetHue = room.target_color.hue;
+        targetLightness = room.target_color.lightness;
+        currentRound = room.round || 1;
+        showGame();
+        startRound();
+        return;
+    }
+    // Игра: если есть результаты соперника
+    if (gameSection && !gameSection.hidden && room.results) {
+        const results = room.results || {};
+        if (results[playerId]) {
+            // Мой результат уже отправлен, показываем/обновляем
+            checkOpponentResultFromRoom(room);
+        }
+    }
+    // Новый раунд
+    if (gameSection && !gameSection.hidden && room.target_color) {
+        const newColor = room.target_color;
+        if (newColor.hue !== targetHue || newColor.lightness !== targetLightness) {
+            targetHue = newColor.hue;
+            targetLightness = newColor.lightness;
+            currentRound = room.round || currentRound + 1;
+            againButton.disabled = false;
+            if (tg) {
+                tg.MainButton.hide();
+                tg.MainButton.enable();
+            }
+            startRound();
+        }
+    }
+    // Матч окончен
+    if (room.match_ended) {
+        againButton.disabled = false;
+        if (tg) {
+            tg.MainButton.setText('Новая игра');
+            tg.MainButton.enable();
+            tg.MainButton.show();
+        }
+    }
+}
 
 function colorFromHsl(hue, lightness) {
   return `hsl(${hue}, 82%, ${lightness}%)`;
@@ -90,6 +165,7 @@ function showInviteScreen(url) {
     modeSelection.hidden = true;
     inviteScreen.hidden = false;
     gameSection.hidden = true;
+    connectSocket();
 
     // В Telegram скрываем ссылку, показываем сообщение о боте
     if (tg) {
@@ -117,8 +193,15 @@ function showGame() {
     gameSection.hidden = false;
 }
 
+function resetMatch() {
+    currentRound = 1;
+    matchScores = [];
+    if (roundInfo) roundInfo.textContent = `Раунд ${currentRound}/${maxRounds}`;
+}
+
 function startSoloGame() {
     isMultiplayer = false;
+    resetMatch();
     showGame();
     startRound();
 }
@@ -144,6 +227,7 @@ async function startMultiplayerGameFromUI() {
     // Для веб версии создаем комнату напрямую
     apiUrl = 'https://colors-production-4484.up.railway.app';
     playerId = Math.random().toString(36).substr(2, 9);
+    resetMatch();
     console.log('Создание комнаты (веб версия), player ID:', playerId);
 
     try {
@@ -198,13 +282,18 @@ function getRoomStatus() {
 }
 
 function submitResultToAPI(result) {
-    fetch(`${apiUrl}/api/result`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room_id: roomId, player_id: playerId, result: result })
-    }).catch(error => {
-        console.error('Ошибка отправки результата:', error);
-    });
+    const payload = { room_id: roomId, player_id: playerId, result: result, round: currentRound };
+    if (socket && socket.connected) {
+        socket.emit('submit_result_socket', payload);
+    } else {
+        fetch(`${apiUrl}/api/result`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).catch(error => {
+            console.error('Ошибка отправки результата:', error);
+        });
+    }
 }
 
 function checkRoomStatus() {
@@ -258,6 +347,7 @@ function startRound() {
   resetSliders();
 
   if (gameTitle) gameTitle.textContent = "Запомни цвет";
+  if (roundInfo) roundInfo.textContent = `Раунд ${currentRound}/${maxRounds}`;
   timer.textContent = "3";
   controls.hidden = true;
   result.hidden = true;
@@ -269,7 +359,9 @@ function startRound() {
   countdownId = setInterval(() => {
     secondsLeft -= 1;
     timer.textContent = String(secondsLeft);
-
+    if (secondsLeft === 1) {
+        hapticLight();
+    }
     if (secondsLeft === 0) {
       clearInterval(countdownId);
       hideTargetColor();
@@ -285,6 +377,10 @@ function hideTargetColor() {
   stageLabel.textContent = "Теперь угадай оттенок и яркость";
   timer.textContent = "?";
   controls.hidden = false;
+  if (tg) {
+    tg.MainButton.setText('Готово');
+    tg.MainButton.show();
+  }
 }
 
 function submitGuess() {
@@ -298,6 +394,12 @@ function submitGuess() {
 
   controls.hidden = true;
   result.hidden = false;
+  if (tg) {
+    tg.MainButton.hide();
+    if (score >= 80) hapticSuccess();
+    else if (score >= 50) hapticLight();
+    else hapticError();
+  }
   targetColor.classList.remove("hidden-color");
   targetColor.style.background = `linear-gradient(90deg, ${colorFromHsl(targetHue, targetLightness)} 0 50%, ${colorFromHsl(guessHue, guessLightness)} 50% 100%)`;
   stageLabel.textContent = "Слева правильный, справа твой";
@@ -314,11 +416,74 @@ function submitGuess() {
     lightnessDiff,
   };
 
+  matchScores.push({ round: currentRound, score });
+
   // В многопользовательском режиме отправляем результат через API
   if (isMultiplayer) {
     submitResultToAPI(lastResult);
     setTimeout(checkOpponentResult, 1000);
+    return; // multiplayer handles its own flow
   }
+
+  // Показываем MainButton "Дальше" после результата
+  if (tg) {
+    tg.MainButton.setText('Дальше');
+    tg.MainButton.enable();
+    tg.MainButton.show();
+  }
+
+  // Если последний раунд — показываем итоговый результат
+  if (currentRound >= maxRounds) {
+    const avgScore = Math.round(matchScores.reduce((a, b) => a + b.score, 0) / matchScores.length);
+    let bestRound = matchScores.reduce((a, b) => a.score > b.score ? a : b);
+    resultText.textContent += `\n🏁 Матч окончен! Средний результат: ${avgScore}% (лучший: ${bestRound.score}% в раунде ${bestRound.round})`;
+    if (tg) {
+      tg.MainButton.setText('Новая игра');
+      tg.MainButton.show();
+    }
+  }
+}
+
+function renderOpponentResult(room) {
+    const results = room.results || {};
+    const opponentId = Object.keys(results).find(id => id !== playerId);
+    if (!opponentId || !results[opponentId]) return false;
+    const opponentResult = results[opponentId];
+    const myResult = results[playerId];
+    if (!myResult || !opponentResult) return false;
+
+    const roomRound = room.round || 1;
+    const roomMax = room.max_rounds || 3;
+    let roundLabel = roomRound >= roomMax ? '🏁 Финальный раунд!' : `Раунд ${roomRound}/${roomMax}`;
+    if (myResult.score > opponentResult.score) {
+        resultText.textContent = `🎉 ${roundLabel}\nТы победил! ${myResult.score}% vs ${opponentResult.score}%`;
+    } else if (myResult.score < opponentResult.score) {
+        resultText.textContent = `😔 ${roundLabel}\nСоперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
+    } else {
+        resultText.textContent = `🤝 ${roundLabel}\nНичья! ${myResult.score}%`;
+    }
+    if (room.match_ended) {
+        const myTotal = Object.values(room.scores[playerId] || {}).reduce((a,b)=>a+b,0);
+        const oppTotal = opponentId ? Object.values(room.scores[opponentId] || {}).reduce((a,b)=>a+b,0) : 0;
+        const myAvg = Math.round(myTotal / roomMax);
+        const oppAvg = Math.round(oppTotal / roomMax);
+        resultText.textContent += `\n🏁 Матч окончен! Средний: ${myAvg}% vs ${oppAvg}%`;
+        if (tg) {
+            tg.MainButton.setText('Новая игра');
+            tg.MainButton.enable();
+            tg.MainButton.show();
+        }
+    } else if (tg) {
+        tg.MainButton.setText('Дальше');
+        tg.MainButton.enable();
+        tg.MainButton.show();
+    }
+    return true;
+}
+
+function checkOpponentResultFromRoom(room) {
+    if (renderOpponentResult(room)) return;
+    // Если соперник еще не отправил — остаемся на polling/fallback
 }
 
 function checkOpponentResult() {
@@ -327,71 +492,95 @@ function checkOpponentResult() {
             console.error('Комната не найдена');
             return;
         }
-
-        console.log('Статус комнаты:', room);
-        console.log('Мой player ID:', playerId);
-        console.log('Результаты:', room.results);
-
-        const results = room.results || {};
-        const opponentId = Object.keys(results).find(id => id !== playerId);
-
-        console.log('ID оппонента:', opponentId);
-
-        if (opponentId && results[opponentId]) {
-            const opponentResult = results[opponentId];
-            const myResult = results[playerId];
-
-            console.log('Мой результат:', myResult);
-            console.log('Результат оппонента:', opponentResult);
-
-            if (myResult && opponentResult) {
-                if (myResult.score > opponentResult.score) {
-                    resultText.textContent = `🎉 Ты победил! ${myResult.score}% vs ${opponentResult.score}%`;
-                } else if (myResult.score < opponentResult.score) {
-                    resultText.textContent = `😔 Соперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
-                } else {
-                    resultText.textContent = `🤝 Ничья! ${myResult.score}%`;
-                }
-            } else {
-                resultText.textContent = "Ожидание результата соперника...";
-                setTimeout(checkOpponentResult, 1000);
-            }
-        } else {
-            resultText.textContent = "Ожидание результата соперника...";
-            setTimeout(checkOpponentResult, 1000);
-        }
+        if (renderOpponentResult(room)) return;
+        resultText.textContent = "Ожидание результата соперника...";
+        setTimeout(checkOpponentResult, 1000);
     });
 }
 
-hueSlider.addEventListener("input", updateGuessPreview);
-lightnessSlider.addEventListener("input", updateGuessPreview);
+let lastHaptic = 0;
+hueSlider.addEventListener("input", () => {
+  updateGuessPreview();
+  const now = Date.now();
+  if (now - lastHaptic > 80) {
+    lastHaptic = now;
+    hapticLight();
+  }
+});
+lightnessSlider.addEventListener("input", () => {
+  updateGuessPreview();
+  const now = Date.now();
+  if (now - lastHaptic > 80) {
+    lastHaptic = now;
+    hapticLight();
+  }
+});
 submitButton.addEventListener("click", submitGuess);
-againButton.addEventListener("click", () => {
+
+// Telegram MainButton для "Готово"
+if (tg) {
+  tg.MainButton.onClick(submitGuess);
+}
+function nextRoundHandler() {
+    if (tg) tg.MainButton.hide();
     if (isMultiplayer) {
         resultText.textContent = "Ожидание соперника...";
         againButton.disabled = true;
-        // Отправляем готовность к следующему раунду через HTTP API
-        fetch(`${apiUrl}/api/ready-next`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ room_id: roomId, player_id: playerId })
-        });
+        if (tg) {
+            tg.MainButton.setText('Ожидание соперника...');
+            tg.MainButton.show();
+            tg.MainButton.disable();
+        }
+        // Отправляем готовность к следующему раунду
+        const payload = { room_id: roomId, player_id: playerId };
+        if (socket && socket.connected) {
+            socket.emit('ready_next_socket', payload);
+        } else {
+            fetch(`${apiUrl}/api/ready-next`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        }
         setTimeout(checkNewRound, 1000);
-    } else {
-        startRound();
+        return;
     }
-});
+    // Соло: переходим к следующему раунду или сбрасываем матч
+    if (currentRound >= maxRounds) {
+        resetMatch();
+    } else {
+        currentRound++;
+    }
+    startRound();
+}
+
+againButton.addEventListener("click", nextRoundHandler);
+if (tg) {
+  tg.MainButton.onClick(nextRoundHandler);
+}
 
 function checkNewRound() {
     getRoomStatus().then(room => {
         if (!room) return;
+
+        if (room.match_ended) {
+            againButton.disabled = false;
+            if (tg) {
+                tg.MainButton.setText('Новая игра');
+                tg.MainButton.enable();
+                tg.MainButton.show();
+            }
+            return;
+        }
 
         if (room.target_color) {
             const newColor = room.target_color;
             if (newColor.hue !== targetHue || newColor.lightness !== targetLightness) {
                 targetHue = newColor.hue;
                 targetLightness = newColor.lightness;
+                currentRound = room.round || currentRound + 1;
                 againButton.disabled = false;
+                if (tg) tg.MainButton.hide();
                 startRound();
             } else {
                 setTimeout(checkNewRound, 1000);
@@ -419,6 +608,28 @@ copyButton.addEventListener("click", () => {
 if (tg) {
   tg.ready();
   tg.expand();
+  tg.requestFullscreen?.();
+  // MainButton настройки
+  tg.MainButton.setParams({ color: '#0e8a78', text_color: '#ffffff' });
+  tg.MainButton.hide();
+}
+
+function hapticLight() {
+  if (tg?.HapticFeedback) {
+    tg.HapticFeedback.impactOccurred('light');
+  }
+}
+
+function hapticSuccess() {
+  if (tg?.HapticFeedback) {
+    tg.HapticFeedback.notificationOccurred('success');
+  }
+}
+
+function hapticError() {
+  if (tg?.HapticFeedback) {
+    tg.HapticFeedback.notificationOccurred('error');
+  }
 }
 
 // Запускаем нужный режим игры
@@ -457,6 +668,7 @@ try {
     // Если есть параметры комнаты - многопользовательский режим
     playerId = Math.random().toString(36).substr(2, 9);
     isMultiplayer = true;
+    resetMatch();
     console.log('Загрузка с параметрами комнаты. Room ID:', roomId, 'Player ID:', playerId, 'API URL:', apiUrl);
 
     joinRoomApi(roomId, playerId).then(data => {
@@ -465,12 +677,14 @@ try {
             showModeSelection();
             return;
         }
+        connectSocket();
         getRoomStatus().then(room => {
             console.log('Статус комнаты после присоединения:', room);
             if (room && room.status === 'ready' && room.target_color) {
                 targetHue = room.target_color.hue;
                 targetLightness = room.target_color.lightness;
-                console.log('Цель получена с сервера:', targetHue, targetLightness);
+                currentRound = room.round || 1;
+                console.log('Цель получена с сервера:', targetHue, targetLightness, 'round:', currentRound);
                 showGame();
                 startRound();
             } else {
