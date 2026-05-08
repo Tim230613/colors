@@ -53,8 +53,37 @@ API_URL = _api_url
 # Автоматическая версия на основе времени запуска
 WEB_APP_VERSION = os.environ.get("WEB_APP_VERSION", str(int(time.time())))
 
-# Хранилище комнат в памяти
+# Файл для сохранения комнат (persistent storage)
+ROOMS_FILE = os.environ.get("ROOMS_FILE", "rooms.json")
+
+# Хранилище комнат
 rooms = {}
+
+def save_rooms():
+    """Сохранить комнаты в JSON файл"""
+    try:
+        with open(ROOMS_FILE, "w", encoding="utf-8") as f:
+            json.dump(rooms, f, ensure_ascii=False)
+        logging.info(f"Saved {len(rooms)} rooms to {ROOMS_FILE}")
+    except Exception as e:
+        logging.error(f"Error saving rooms: {e}")
+
+def load_rooms():
+    """Загрузить комнаты из JSON файла"""
+    global rooms
+    if os.path.exists(ROOMS_FILE):
+        try:
+            with open(ROOMS_FILE, "r", encoding="utf-8") as f:
+                rooms = json.load(f)
+            logging.info(f"Loaded {len(rooms)} rooms from {ROOMS_FILE}")
+        except Exception as e:
+            logging.error(f"Error loading rooms: {e}")
+            rooms = {}
+    else:
+        rooms = {}
+
+# Загружаем комнаты при старте
+load_rooms()
 
 # Flask приложение для HTTP API
 app = Flask(__name__)
@@ -64,9 +93,11 @@ CORS(app)  # Разрешаем CORS запросы
 @app.route('/api/room/<room_id>', methods=['GET'])
 def get_room_info(room_id):
     """Получить информацию о комнате"""
+    logging.info(f"GET /api/room/{room_id}, known rooms: {list(rooms.keys())}")
     room = get_room(room_id)
     if room:
         return jsonify(room)
+    logging.warning(f"Room {room_id} not found")
     return jsonify({'error': 'Room not found'}), 404
 
 
@@ -76,13 +107,16 @@ def join_room_api():
     data = request.json
     room_id = data.get('room_id')
     player_id = data.get('player_id')
+    logging.info(f"POST /api/join room_id={room_id} player_id={player_id}, known rooms: {list(rooms.keys())}")
 
     if not room_id or not player_id:
         return jsonify({'error': 'Missing room_id or player_id'}), 400
 
     success = join_room(room_id, player_id)
     if success:
+        logging.info(f"Player {player_id} joined room {room_id}")
         return jsonify({'success': True})
+    logging.warning(f"Player {player_id} failed to join room {room_id}")
     return jsonify({'error': 'Failed to join room'}), 400
 
 
@@ -106,12 +140,14 @@ def create_room_api():
     """Создать новую комнату"""
     data = request.json
     player_id = data.get('player_id')
+    logging.info(f"POST /api/create-room player_id={player_id}")
 
     if not player_id:
         return jsonify({'error': 'Missing player_id'}), 400
 
     room_id = create_room()
     join_room(room_id, player_id)
+    logging.info(f"Room {room_id} created, total rooms: {len(rooms)}")
 
     # Формируем URL для приглашения
     invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
@@ -152,6 +188,7 @@ def ready_next_round_api():
         room['ready_next'] = []
         room['results'] = {}  # Очищаем результаты для нового раунда
 
+    save_rooms()
     return jsonify({'success': True})
 
 
@@ -176,6 +213,7 @@ def create_room():
         'target_color': None,
         'results': {}
     }
+    save_rooms()
     return room_id
 
 
@@ -197,6 +235,7 @@ def join_room(room_id, player_id):
                 'lightness': random.randint(0, 80)
             }
 
+        save_rooms()
         return True
     return False
 
@@ -210,6 +249,7 @@ def submit_result(room_id, player_id, result):
     """Сохраняет результат игрока"""
     if room_id in rooms:
         rooms[room_id]['results'][player_id] = result
+        save_rooms()
 
 
 def require_env(name, value):
