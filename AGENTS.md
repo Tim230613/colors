@@ -32,6 +32,7 @@ python -m http.server 8000 --bind 127.0.0.1
 4. Запустить: `python bot.py`
 
 ## История изменений
+- 2026-05-08 11:05: ВИЗУАЛЬНЫЙ АПДЕЙТ - glassmorphism для панелей (.game/.mode-selection/.invite-screen): backdrop-filter blur + saturate, полупрозрачный фон, скругление 16px. Улучшены слайдеры: hue track с glow, lightness track до 100% белого, thumb с цветным glow и scale-эффектом при нажатии. Шрифт обновлён на системный стек. Версии обновлены до v=26.
 - 2026-05-08 11:00: ОТКАТ НА РАБОТАЮЩУЮ FLASK ВЕРСИЮ - полный откат bot.py с aiohttp/WebSocket/Redis обратно на проверенную Flask + threading + JSON persistent storage. Убран socket.io из app.js и index.html. requirements.txt возвращен на flask/flask-cors. Мультиплеер снова работает стабильно. Версии обновлены до v=25.
 - 2026-05-08 10:55: ИСПРАВЛЕНО ИСЧЕЗНОВЕНИЕ КОМНАТ (JSON PERSISTENCE) - вернул сохранение комнат в JSON файл как основной persistent storage для Railway free tier. Redis оставлен как дополнительный кэш. Комнаты всегда сохраняются на диск и перечитываются при старте/поиске. Добавлено логирование в HTTP endpoints.
 - 2026-05-08 10:55: УБРАНЫ FULLSCREEN/HAPTIC/MAINBUTTON - по запросу пользователя: fullscreen разворачивал WebApp на весь экран (неудобно), haptic вибрация была лишней, MainButton дублировала DOM-кнопки в интерфейсе. WebSocket, Redis, мультираунды оставлены. Версии обновлены до v=22.
