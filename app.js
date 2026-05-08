@@ -51,66 +51,6 @@ let roomId = null;
 let apiUrl = null;
 let playerId = null;
 let pollingId = null;
-let socket = null;
-
-function connectSocket() {
-    if (!apiUrl || socket) return;
-    try {
-        const url = new URL(apiUrl);
-        socket = io(url.origin, { path: '/socket.io/', transports: ['websocket', 'polling'] });
-        socket.on('connect', () => {
-            console.log('Socket connected');
-            if (roomId && playerId) {
-                socket.emit('join_room_socket', { room_id: roomId, player_id: playerId });
-            }
-        });
-        socket.on('room_update', (room) => {
-            console.log('Socket room_update:', room);
-            handleRoomUpdate(room);
-        });
-        socket.on('disconnect', () => {
-            console.log('Socket disconnected');
-        });
-    } catch (e) {
-        console.error('Socket connect error:', e);
-    }
-}
-
-function handleRoomUpdate(room) {
-    // Приглашение: если комната готова — запускаем игру
-    if (inviteScreen && !inviteScreen.hidden && room.status === 'ready' && room.target_color) {
-        clearInterval(pollingId);
-        targetHue = room.target_color.hue;
-        targetLightness = room.target_color.lightness;
-        currentRound = room.round || 1;
-        showGame();
-        startRound();
-        return;
-    }
-    // Игра: если есть результаты соперника
-    if (gameSection && !gameSection.hidden && room.results) {
-        const results = room.results || {};
-        if (results[playerId]) {
-            // Мой результат уже отправлен, показываем/обновляем
-            checkOpponentResultFromRoom(room);
-        }
-    }
-    // Новый раунд
-    if (gameSection && !gameSection.hidden && room.target_color) {
-        const newColor = room.target_color;
-        if (newColor.hue !== targetHue || newColor.lightness !== targetLightness) {
-            targetHue = newColor.hue;
-            targetLightness = newColor.lightness;
-            currentRound = room.round || currentRound + 1;
-            againButton.disabled = false;
-            startRound();
-        }
-    }
-    // Матч окончен
-    if (room.match_ended) {
-        againButton.disabled = false;
-    }
-}
 
 function colorFromHsl(hue, lightness) {
   return `hsl(${hue}, 82%, ${lightness}%)`;
@@ -156,7 +96,6 @@ function showInviteScreen(url) {
     modeSelection.hidden = true;
     inviteScreen.hidden = false;
     gameSection.hidden = true;
-    connectSocket();
 
     // В Telegram скрываем ссылку, показываем сообщение о боте
     if (tg) {
@@ -273,18 +212,13 @@ function getRoomStatus() {
 }
 
 function submitResultToAPI(result) {
-    const payload = { room_id: roomId, player_id: playerId, result: result, round: currentRound };
-    if (socket && socket.connected) {
-        socket.emit('submit_result_socket', payload);
-    } else {
-        fetch(`${apiUrl}/api/result`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).catch(error => {
-            console.error('Ошибка отправки результата:', error);
-        });
-    }
+    fetch(`${apiUrl}/api/result`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_id: roomId, player_id: playerId, result: result, round: currentRound })
+    }).catch(error => {
+        console.error('Ошибка отправки результата:', error);
+    });
 }
 
 function checkRoomStatus() {
@@ -465,16 +399,11 @@ function nextRoundHandler() {
         resultText.textContent = "Ожидание соперника...";
         againButton.disabled = true;
         // Отправляем готовность к следующему раунду
-        const payload = { room_id: roomId, player_id: playerId };
-        if (socket && socket.connected) {
-            socket.emit('ready_next_socket', payload);
-        } else {
-            fetch(`${apiUrl}/api/ready-next`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-        }
+        fetch(`${apiUrl}/api/ready-next`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room_id: roomId, player_id: playerId })
+        });
         setTimeout(checkNewRound, 1000);
         return;
     }
@@ -579,7 +508,6 @@ try {
             showModeSelection();
             return;
         }
-        connectSocket();
         getRoomStatus().then(room => {
             console.log('Статус комнаты после присоединения:', room);
             if (room && room.status === 'ready' && room.target_color) {

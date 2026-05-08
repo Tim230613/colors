@@ -1,14 +1,14 @@
-import asyncio
 import json
 import logging
 import os
 import random
 import string
+import threading
 import time
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from aiohttp import web
-import socketio
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from telegram import KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
@@ -18,12 +18,6 @@ from telegram.ext import (
     filters,
 )
 
-# Redis (опционально)
-try:
-    import redis.asyncio as aioredis
-    HAS_REDIS = True
-except ImportError:
-    HAS_REDIS = False
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -34,11 +28,13 @@ logging.basicConfig(
 def load_env_file(path=".env"):
     if not os.path.exists(path):
         return
+
     with open(path, encoding="utf-8") as file:
         for line in file:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
+
             name, value = line.split("=", 1)
             os.environ.setdefault(name.strip(), value.strip().strip('"'))
 
@@ -54,313 +50,222 @@ if _api_url and not _api_url.startswith(("http://", "https://")):
     _api_url = f"https://{_api_url}"
 API_URL = _api_url
 
+# Автоматическая версия на основе времени запуска
 WEB_APP_VERSION = os.environ.get("WEB_APP_VERSION", str(int(time.time())))
 
-REDIS_URL = os.environ.get("REDIS_URL")
+# Файл для сохранения комнат (persistent storage)
+ROOMS_FILE = os.environ.get("ROOMS_FILE", "rooms.json")
 
 # Хранилище комнат
 rooms = {}
-redis_client = None
-ROOMS_FILE = os.environ.get("ROOMS_FILE", "rooms.json")
 
-
-async def get_redis():
-    global redis_client
-    if not HAS_REDIS or not REDIS_URL:
-        return None
-    if redis_client is None:
-        try:
-            redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
-            await redis_client.ping()
-            logging.info("Redis connected")
-        except Exception as e:
-            logging.error(f"Redis connection failed: {e}")
-            redis_client = None
-    return redis_client
-
-
-def _room_key(room_id):
-    return f"room:{room_id}"
-
-
-def _save_to_file():
+def save_rooms():
+    """Сохранить комнаты в JSON файл"""
     try:
         with open(ROOMS_FILE, "w", encoding="utf-8") as f:
             json.dump(rooms, f, ensure_ascii=False)
+        logging.info(f"Saved {len(rooms)} rooms to {ROOMS_FILE}")
     except Exception as e:
-        logging.warning(f"Failed to save rooms to file: {e}")
+        logging.error(f"Error saving rooms: {e}")
 
-
-def _load_from_file():
+def load_rooms():
+    """Загрузить комнаты из JSON файла"""
     global rooms
     if os.path.exists(ROOMS_FILE):
         try:
             with open(ROOMS_FILE, "r", encoding="utf-8") as f:
                 rooms = json.load(f)
-            logging.info(f"Loaded {len(rooms)} rooms from file")
+            logging.info(f"Loaded {len(rooms)} rooms from {ROOMS_FILE}")
         except Exception as e:
-            logging.error(f"Failed to load rooms from file: {e}")
+            logging.error(f"Error loading rooms: {e}")
             rooms = {}
     else:
         rooms = {}
 
-# Загружаем комнаты из файла при старте
-_load_from_file()
+# Загружаем комнаты при старте
+load_rooms()
+
+# Flask приложение для HTTP API
+app = Flask(__name__)
+CORS(app)  # Разрешаем CORS запросы
 
 
-async def save_room(room_id, room_data):
-    rooms[room_id] = room_data
-    _save_to_file()
-    r = await get_redis()
-    if r:
-        try:
-            await r.set(_room_key(room_id), json.dumps(room_data), ex=3600)
-        except Exception as e:
-            logging.warning(f"Redis save failed: {e}")
+@app.route('/api/room/<room_id>', methods=['GET'])
+def get_room_info(room_id):
+    """Получить информацию о комнате"""
+    logging.info(f"GET /api/room/{room_id}, known rooms: {list(rooms.keys())}")
+    room = get_room(room_id)
+    if room:
+        return jsonify(room)
+    logging.warning(f"Room {room_id} not found")
+    return jsonify({'error': 'Room not found'}), 404
 
 
-async def load_room(room_id):
-    # Сначала проверяем память
-    if room_id in rooms:
-        return rooms[room_id]
-    # Затем Redis
-    r = await get_redis()
-    if r:
-        try:
-            data = await r.get(_room_key(room_id))
-            if data:
-                room = json.loads(data)
-                rooms[room_id] = room
-                return room
-        except Exception as e:
-            logging.warning(f"Redis load failed: {e}")
-    # Fallback: перечитаем файл (на случай если процесс перезапустился)
-    _load_from_file()
-    return rooms.get(room_id)
+@app.route('/api/join', methods=['POST'])
+def join_room_api():
+    """Присоединиться к комнате"""
+    data = request.json
+    room_id = data.get('room_id')
+    player_id = data.get('player_id')
+    logging.info(f"POST /api/join room_id={room_id} player_id={player_id}, known rooms: {list(rooms.keys())}")
+
+    if not room_id or not player_id:
+        return jsonify({'error': 'Missing room_id or player_id'}), 400
+
+    success = join_room(room_id, player_id)
+    if success:
+        logging.info(f"Player {player_id} joined room {room_id}")
+        return jsonify({'success': True})
+    logging.warning(f"Player {player_id} failed to join room {room_id}")
+    return jsonify({'error': 'Failed to join room'}), 400
 
 
-async def delete_room(room_id):
-    rooms.pop(room_id, None)
-    _save_to_file()
-    r = await get_redis()
-    if r:
-        try:
-            await r.delete(_room_key(room_id))
-        except Exception:
-            pass
+@app.route('/api/result', methods=['POST'])
+def submit_result_api():
+    """Отправить результат"""
+    data = request.json
+    room_id = data.get('room_id')
+    player_id = data.get('player_id')
+    result = data.get('result')
+
+    if not all([room_id, player_id, result]):
+        return jsonify({'error': 'Missing data'}), 400
+
+    submit_result(room_id, player_id, result)
+    return jsonify({'success': True})
+
+
+@app.route('/api/create-room', methods=['POST'])
+def create_room_api():
+    """Создать новую комнату"""
+    data = request.json
+    player_id = data.get('player_id')
+    logging.info(f"POST /api/create-room player_id={player_id}")
+
+    if not player_id:
+        return jsonify({'error': 'Missing player_id'}), 400
+
+    room_id = create_room()
+    join_room(room_id, player_id)
+    logging.info(f"Room {room_id} created, total rooms: {len(rooms)}")
+
+    # Формируем URL для приглашения
+    invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
+
+    return jsonify({
+        'success': True,
+        'room_id': room_id,
+        'invite_url': invite_url
+    })
+
+
+@app.route('/api/ready-next', methods=['POST'])
+def ready_next_round_api():
+    """Игрок готов к следующему раунду"""
+    data = request.json
+    room_id = data.get('room_id')
+    player_id = data.get('player_id')
+
+    if not all([room_id, player_id]):
+        return jsonify({'error': 'Missing data'}), 400
+
+    if room_id not in rooms:
+        return jsonify({'error': 'Room not found'}), 404
+
+    room = rooms[room_id]
+    if room.get('match_ended'):
+        return jsonify({'error': 'Match ended'}), 400
+
+    if 'ready_next' not in room:
+        room['ready_next'] = []
+
+    if player_id not in room['ready_next']:
+        room['ready_next'].append(player_id)
+
+    # Если оба игрока готовы - переходим к следующему раунду
+    if len(room['ready_next']) == 2:
+        room['round'] += 1
+        if room['round'] > room['max_rounds']:
+            room['match_ended'] = True
+        else:
+            room['target_color'] = {
+                'hue': random.randint(0, 360),
+                'lightness': random.randint(0, 80)
+            }
+        room['ready_next'] = []
+        room['results'] = {}  # Очищаем результаты для нового раунда
+
+    save_rooms()
+    return jsonify({'success': True, 'round': room['round'], 'match_ended': room.get('match_ended', False)})
+
+
+def run_flask():
+    """Запустить Flask сервер в отдельном потоке"""
+    # На Railway используем порт из переменной окружения
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 
 
 def generate_room_id():
-    return "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    """Генерирует уникальный ID комнаты"""
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
 
-async def create_room():
+def create_room():
+    """Создает новую комнату"""
     room_id = generate_room_id()
-    room = {
-        "players": [],
-        "status": "waiting",
-        "target_color": None,
-        "results": {},
-        "round": 1,
-        "max_rounds": 5,
-        "scores": {},
-        "match_ended": False,
-        "ready_next": [],
+    rooms[room_id] = {
+        'players': [],
+        'status': 'waiting',
+        'target_color': None,
+        'results': {},
+        'round': 1,
+        'max_rounds': 5,
+        'scores': {},
+        'match_ended': False,
+        'ready_next': []
     }
-    await save_room(room_id, room)
+    save_rooms()
     return room_id
 
 
-async def join_room(room_id, player_id):
-    room = await load_room(room_id)
-    if not room:
+def join_room(room_id, player_id):
+    """Присоединяет игрока к комнате"""
+    if room_id not in rooms:
         return False
-    if player_id not in room["players"] and len(room["players"]) < 2:
-        room["players"].append(player_id)
-        if len(room["players"]) == 2:
-            room["status"] = "ready"
-            room["target_color"] = {
-                "hue": random.randint(0, 360),
-                "lightness": random.randint(0, 80),
+
+    room = rooms[room_id]
+    if player_id not in room['players'] and len(room['players']) < 2:
+        room['players'].append(player_id)
+
+        # Если два игрока - начинаем игру
+        if len(room['players']) == 2:
+            room['status'] = 'ready'
+            # Генерируем общий цвет для обоих
+            room['target_color'] = {
+                'hue': random.randint(0, 360),
+                'lightness': random.randint(0, 80)
             }
-        await save_room(room_id, room)
+
+        save_rooms()
         return True
     return False
 
 
-async def submit_result(room_id, player_id, result):
-    room = await load_room(room_id)
-    if not room:
-        return
-    room["results"][player_id] = result
-    if player_id not in room["scores"]:
-        room["scores"][player_id] = {}
-    room["scores"][player_id][str(room["round"])] = result.get("score", 0)
-    await save_room(room_id, room)
+def get_room(room_id):
+    """Получает информацию о комнате"""
+    return rooms.get(room_id)
 
 
-async def ready_next(room_id, player_id):
-    room = await load_room(room_id)
-    if not room:
-        return None
-    if room.get("match_ended"):
-        return room
-    if player_id not in room["ready_next"]:
-        room["ready_next"].append(player_id)
-    if len(room["ready_next"]) == 2:
-        room["round"] += 1
-        if room["round"] > room["max_rounds"]:
-            room["match_ended"] = True
-        else:
-            room["target_color"] = {
-                "hue": random.randint(0, 360),
-                "lightness": random.randint(0, 80),
-            }
-        room["ready_next"] = []
-        room["results"] = {}
-    await save_room(room_id, room)
-    return room
-
-
-# Socket.IO сервер
-sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode="aiohttp")
-app = web.Application()
-sio.attach(app)
-
-
-@sio.event
-async def connect(sid, environ):
-    logging.info(f"Socket connected: {sid}")
-
-
-@sio.event
-async def disconnect(sid):
-    logging.info(f"Socket disconnected: {sid}")
-
-
-@sio.event
-async def join_room_socket(sid, data):
-    room_id = data.get("room_id")
-    player_id = data.get("player_id")
-    if not room_id or not player_id:
-        await sio.emit("error", {"message": "Missing data"}, room=sid)
-        return
-    success = await join_room(room_id, player_id)
-    sio.enter_room(sid, room_id)
-    await sio.emit("joined", {"success": success, "room_id": room_id}, room=sid)
-    room = await load_room(room_id)
-    if room:
-        await sio.emit("room_update", room, room=room_id)
-
-
-@sio.event
-async def submit_result_socket(sid, data):
-    room_id = data.get("room_id")
-    player_id = data.get("player_id")
-    result = data.get("result")
-    rnd = data.get("round", 1)
-    if not all([room_id, player_id, result]):
-        return
-    await submit_result(room_id, player_id, result)
-    room = await load_room(room_id)
-    if room:
-        await sio.emit("room_update", room, room=room_id)
-
-
-@sio.event
-async def ready_next_socket(sid, data):
-    room_id = data.get("room_id")
-    player_id = data.get("player_id")
-    if not all([room_id, player_id]):
-        return
-    room = await ready_next(room_id, player_id)
-    if room:
-        await sio.emit("room_update", room, room=room_id)
-
-
-# HTTP API (fallback для клиентов без WebSocket)
-async def get_room_http(request):
-    room_id = request.match_info["room_id"]
-    room = await load_room(room_id)
-    logging.info(f"GET /api/room/{room_id} -> found={room is not None}")
-    if room:
-        return web.json_response(room)
-    return web.json_response({"error": "Room not found"}, status=404)
-
-
-async def join_room_http(request):
-    data = await request.json()
-    room_id = data.get("room_id")
-    player_id = data.get("player_id")
-    logging.info(f"POST /api/join room_id={room_id} player_id={player_id}")
-    if not room_id or not player_id:
-        return web.json_response({"error": "Missing data"}, status=400)
-    success = await join_room(room_id, player_id)
-    room = await load_room(room_id)
-    logging.info(f"join_room result: success={success}, room_players={room.get('players') if room else None}")
-    if room:
-        await sio.emit("room_update", room, room=room_id)
-    if success:
-        return web.json_response({"success": True})
-    return web.json_response({"error": "Failed to join"}, status=400)
-
-
-async def create_room_http(request):
-    data = await request.json()
-    player_id = data.get("player_id")
-    if not player_id:
-        return web.json_response({"error": "Missing player_id"}, status=400)
-    room_id = await create_room()
-    await join_room(room_id, player_id)
-    invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
-    logging.info(f"POST /api/create-room -> room_id={room_id} player_id={player_id}")
-    return web.json_response({
-        "success": True,
-        "room_id": room_id,
-        "invite_url": invite_url,
-    })
-
-
-async def submit_result_http(request):
-    data = await request.json()
-    room_id = data.get("room_id")
-    player_id = data.get("player_id")
-    result = data.get("result")
-    if not all([room_id, player_id, result]):
-        return web.json_response({"error": "Missing data"}, status=400)
-    await submit_result(room_id, player_id, result)
-    room = await load_room(room_id)
-    if room:
-        await sio.emit("room_update", room, room=room_id)
-    return web.json_response({"success": True})
-
-
-async def ready_next_http(request):
-    data = await request.json()
-    room_id = data.get("room_id")
-    player_id = data.get("player_id")
-    if not all([room_id, player_id]):
-        return web.json_response({"error": "Missing data"}, status=400)
-    room = await ready_next(room_id, player_id)
-    if room:
-        await sio.emit("room_update", room, room=room_id)
-    return web.json_response({
-        "success": True,
-        "round": room["round"],
-        "match_ended": room.get("match_ended", False),
-    })
-
-
-async def health_check(request):
-    return web.json_response({"status": "healthy"})
-
-
-app.router.add_get("/api/room/{room_id}", get_room_http)
-app.router.add_post("/api/join", join_room_http)
-app.router.add_post("/api/create-room", create_room_http)
-app.router.add_post("/api/result", submit_result_http)
-app.router.add_post("/api/ready-next", ready_next_http)
-app.router.add_get("/health", health_check)
+def submit_result(room_id, player_id, result):
+    """Сохраняет результат игрока"""
+    if room_id in rooms:
+        room = rooms[room_id]
+        room['results'][player_id] = result
+        if player_id not in room['scores']:
+            room['scores'][player_id] = {}
+        room['scores'][player_id][str(room['round'])] = result.get('score', 0)
+        save_rooms()
 
 
 def require_env(name, value):
@@ -371,11 +276,14 @@ def require_env(name, value):
 def versioned_url(url):
     parts = urlsplit(url)
     path = parts.path
+
     if path and "." not in path.rsplit("/", 1)[-1] and not path.endswith("/"):
         path = f"{path}/"
+
     query = dict(parse_qsl(parts.query))
     query["tg_build"] = WEB_APP_VERSION
     query["tg_t"] = str(int(time.time()))
+
     return urlunsplit(
         (parts.scheme, parts.netloc, path, urlencode(query), parts.fragment)
     )
@@ -387,11 +295,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         room_id = args[0]
         invite_url = f"{versioned_url(WEB_APP_URL)}&room={room_id}&api={API_URL}"
         logging.info(f"Invite URL for room {room_id}: {invite_url}")
+
         button = KeyboardButton(
             "Присоединиться к игре",
             web_app=WebAppInfo(url=invite_url),
         )
         keyboard = ReplyKeyboardMarkup([[button]], resize_keyboard=True)
+
         await update.message.reply_text(
             "🎮 Тебя пригласили в Color Memory!\n\n"
             "Нажми кнопку ниже, чтобы присоединиться к игре:",
@@ -401,11 +311,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     solo_url = f"{versioned_url(WEB_APP_URL)}&api={API_URL}"
     logging.info(f"Solo URL: {solo_url}")
+
     solo_button = KeyboardButton(
         "Играть",
         web_app=WebAppInfo(url=solo_url),
     )
+
     keyboard = ReplyKeyboardMarkup([[solo_button]], resize_keyboard=True)
+
     await update.message.reply_text(
         "🎮 Color Memory\n\n"
         "Готов сыграть? Нажми кнопку для запуска игры:",
@@ -423,18 +336,23 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Не смог прочитать данные.")
         return
 
+    # Обработка действия создания комнаты
     action = data.get("action")
     logging.info(f"Action: {action}")
     if action == "create_multiplayer_room":
         logging.info("Creating multiplayer room...")
-        room_id = await create_room()
+
+        # Создаем пустую комнату (игроки присоединяются через WebApp)
+        room_id = create_room()
         logging.info(f"Room ID: {room_id}")
 
+        # Получаем username бота для Telegram-ссылки
         try:
             bot_username = context.bot.username
         except Exception:
             bot_username = None
 
+        # Формируем URL для приглашения (веб версия)
         web_invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
         logging.info(f"Web invite URL: {web_invite_url}")
 
@@ -445,6 +363,7 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         if bot_username:
             tg_link = f"https://t.me/{bot_username}?start={room_id}"
             text += f"📱 Ссылка для Telegram:\n{tg_link}\n\n"
+
         text += "Отправь ссылку другу, чтобы играть вместе!"
 
         try:
@@ -454,6 +373,7 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             logging.error(f"Error sending reply: {e}")
         return
 
+    # Обработка результатов игры
     if "score" in data:
         score = data.get("score", 0)
         hue_diff = data.get("hueDiff", 0)
@@ -466,6 +386,7 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
+    # Fallback: если action не распознан и нет score — тоже отвечаем
     logging.warning(f"Неизвестное действие от WebApp: {data}")
     await update.message.reply_text(
         "🎮 Получил данные, но не понял команду.\n"
@@ -473,31 +394,20 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
-async def main():
+def main() -> None:
     require_env("BOT_TOKEN", TOKEN)
     require_env("WEB_APP_URL", WEB_APP_URL)
 
-    # Telegram бот
+    # Запускаем Flask сервер в отдельном потоке
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
+    # Запускаем Telegram бота
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
-
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-
-    # HTTP/WebSocket сервер
-    port = int(os.environ.get("PORT", 5000))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    logging.info(f"Server started on port {port}")
-
-    # Keep running
-    while True:
-        await asyncio.sleep(3600)
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

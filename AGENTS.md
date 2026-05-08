@@ -32,6 +32,7 @@ python -m http.server 8000 --bind 127.0.0.1
 4. Запустить: `python bot.py`
 
 ## История изменений
+- 2026-05-08 11:00: ОТКАТ НА РАБОТАЮЩУЮ FLASK ВЕРСИЮ - полный откат bot.py с aiohttp/WebSocket/Redis обратно на проверенную Flask + threading + JSON persistent storage. Убран socket.io из app.js и index.html. requirements.txt возвращен на flask/flask-cors. Мультиплеер снова работает стабильно. Версии обновлены до v=25.
 - 2026-05-08 10:55: ИСПРАВЛЕНО ИСЧЕЗНОВЕНИЕ КОМНАТ (JSON PERSISTENCE) - вернул сохранение комнат в JSON файл как основной persistent storage для Railway free tier. Redis оставлен как дополнительный кэш. Комнаты всегда сохраняются на диск и перечитываются при старте/поиске. Добавлено логирование в HTTP endpoints.
 - 2026-05-08 10:55: УБРАНЫ FULLSCREEN/HAPTIC/MAINBUTTON - по запросу пользователя: fullscreen разворачивал WebApp на весь экран (неудобно), haptic вибрация была лишней, MainButton дублировала DOM-кнопки в интерфейсе. WebSocket, Redis, мультираунды оставлены. Версии обновлены до v=22.
 - 2026-05-08 10:50: REDIS + WEBSOCKET + HAPTIC + MAINBUTTON + МУЛЬТИРАУНДЫ - полный апдейт: (1) Haptic feedback при движении слайдеров и результате, Telegram MainButton вместо DOM-кнопок "Готово"/"Дальше"; (2) Мультираундовый режим best of 3 с итоговым счетом и средним результатом; (3) Бэкенд переписан на aiohttp + python-socketio с Redis (fallback на память), WebSocket заменяет HTTP polling для мгновенной синхронизации. Версии обновлены до v=21.
