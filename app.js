@@ -24,6 +24,7 @@ const targetColor = document.getElementById("targetColor");
 const stageLabel = document.getElementById("stageLabel");
 const timer = document.getElementById("timer");
 const controls = document.getElementById("controls");
+const gameTitle = document.getElementById("gameTitle");
 const hueSlider = document.getElementById("hueSlider");
 const lightnessSlider = document.getElementById("lightnessSlider");
 const guessPreview = document.getElementById("guessPreview");
@@ -256,6 +257,7 @@ function startRound() {
 
   resetSliders();
 
+  if (gameTitle) gameTitle.textContent = "Запомни цвет";
   timer.textContent = "3";
   controls.hidden = true;
   result.hidden = true;
@@ -277,6 +279,7 @@ function startRound() {
 
 function hideTargetColor() {
   resetSliders();
+  if (gameTitle) gameTitle.textContent = "Восстанови цвет";
   targetColor.style.background = "";
   targetColor.classList.add("hidden-color");
   stageLabel.textContent = "Теперь угадай оттенок и яркость";
