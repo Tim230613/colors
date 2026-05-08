@@ -97,14 +97,11 @@ input {
   z-index: 1;
   width: min(100%, 470px);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(23, 29, 33, 0.08);
   border-radius: 20px;
-  background: rgba(251, 247, 239, 0.62);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  background: #fbf7ef;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    0 24px 60px rgba(0, 0, 0, 0.35);
 }
 
 .mode-selection {
@@ -112,14 +109,11 @@ input {
   z-index: 1;
   width: min(100%, 470px);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(23, 29, 33, 0.08);
   border-radius: 20px;
-  background: rgba(251, 247, 239, 0.62);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  background: #fbf7ef;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    0 24px 60px rgba(0, 0, 0, 0.35);
 }
 
 .invite-screen {
@@ -127,14 +121,11 @@ input {
   z-index: 1;
   width: min(100%, 470px);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(23, 29, 33, 0.08);
   border-radius: 20px;
-  background: rgba(251, 247, 239, 0.62);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  background: #fbf7ef;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    0 24px 60px rgba(0, 0, 0, 0.35);
 }
 
 .invite-content {

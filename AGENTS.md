@@ -35,6 +35,7 @@ python -m http.server 8000 --bind 127.0.0.1
 4. Запустить: `python bot.py`
 
 ## История изменений
+- 2026-05-08 11:35: УБРАН GLASSMORPHISM — по запросу пользователя панели (.game/.mode-selection/.invite-screen) сделаны полностью непрозрачными (#fbf7ef), убран backdrop-filter и inset glow. Прозрачный фон с "орбами" оставлен. Версии обновлены до v=28.
 - 2026-05-08 11:30: ЖИВОЙ ИНТЕРФЕЙС — анимированный фон с плавающими размытыми цветными "орбами" (красный, синий, зеленый), glassmorphism усилен (blur 24px, saturate 160%), подключен шрифт Inter. Карточки режимов: цветные градиентные фоны при hover, анимация появления slideInUp с задержкой, иконки в скругленных контейнерах с цветными glow. Кнопки с усиленным glow и hover-эффектами. Eyebrow теперь акцентного цвета. Версии обновлены до v=27.
 - 2026-05-08 11:05: ВИЗУАЛЬНЫЙ АПДЕЙТ - glassmorphism для панелей (.game/.mode-selection/.invite-screen): backdrop-filter blur + saturate, полупрозрачный фон, скругление 16px. Улучшены слайдеры: hue track с glow, lightness track до 100% белого, thumb с цветным glow и scale-эффектом при нажатии. Шрифт обновлён на системный стек. Версии обновлены до v=26.
 - 2026-05-08 11:00: ОТКАТ НА РАБОТАЮЩУЮ FLASK ВЕРСИЮ - полный откат bot.py с aiohttp/WebSocket/Redis обратно на проверенную Flask + threading + JSON persistent storage. Убран socket.io из app.js и index.html. requirements.txt возвращен на flask/flask-cors. Мультиплеер снова работает стабильно. Версии обновлены до v=25.
