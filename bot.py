@@ -61,6 +61,7 @@ REDIS_URL = os.environ.get("REDIS_URL")
 # Хранилище комнат
 rooms = {}
 redis_client = None
+ROOMS_FILE = os.environ.get("ROOMS_FILE", "rooms.json")
 
 
 async def get_redis():
@@ -82,30 +83,71 @@ def _room_key(room_id):
     return f"room:{room_id}"
 
 
+def _save_to_file():
+    try:
+        with open(ROOMS_FILE, "w", encoding="utf-8") as f:
+            json.dump(rooms, f, ensure_ascii=False)
+    except Exception as e:
+        logging.warning(f"Failed to save rooms to file: {e}")
+
+
+def _load_from_file():
+    global rooms
+    if os.path.exists(ROOMS_FILE):
+        try:
+            with open(ROOMS_FILE, "r", encoding="utf-8") as f:
+                rooms = json.load(f)
+            logging.info(f"Loaded {len(rooms)} rooms from file")
+        except Exception as e:
+            logging.error(f"Failed to load rooms from file: {e}")
+            rooms = {}
+    else:
+        rooms = {}
+
+# Загружаем комнаты из файла при старте
+_load_from_file()
+
+
 async def save_room(room_id, room_data):
+    rooms[room_id] = room_data
+    _save_to_file()
     r = await get_redis()
     if r:
-        await r.set(_room_key(room_id), json.dumps(room_data), ex=3600)
-    else:
-        rooms[room_id] = room_data
+        try:
+            await r.set(_room_key(room_id), json.dumps(room_data), ex=3600)
+        except Exception as e:
+            logging.warning(f"Redis save failed: {e}")
 
 
 async def load_room(room_id):
+    # Сначала проверяем память
+    if room_id in rooms:
+        return rooms[room_id]
+    # Затем Redis
     r = await get_redis()
     if r:
-        data = await r.get(_room_key(room_id))
-        if data:
-            return json.loads(data)
-        return None
+        try:
+            data = await r.get(_room_key(room_id))
+            if data:
+                room = json.loads(data)
+                rooms[room_id] = room
+                return room
+        except Exception as e:
+            logging.warning(f"Redis load failed: {e}")
+    # Fallback: перечитаем файл (на случай если процесс перезапустился)
+    _load_from_file()
     return rooms.get(room_id)
 
 
 async def delete_room(room_id):
+    rooms.pop(room_id, None)
+    _save_to_file()
     r = await get_redis()
     if r:
-        await r.delete(_room_key(room_id))
-    else:
-        rooms.pop(room_id, None)
+        try:
+            await r.delete(_room_key(room_id))
+        except Exception:
+            pass
 
 
 def generate_room_id():
@@ -240,6 +282,7 @@ async def ready_next_socket(sid, data):
 async def get_room_http(request):
     room_id = request.match_info["room_id"]
     room = await load_room(room_id)
+    logging.info(f"GET /api/room/{room_id} -> found={room is not None}")
     if room:
         return web.json_response(room)
     return web.json_response({"error": "Room not found"}, status=404)
@@ -249,10 +292,12 @@ async def join_room_http(request):
     data = await request.json()
     room_id = data.get("room_id")
     player_id = data.get("player_id")
+    logging.info(f"POST /api/join room_id={room_id} player_id={player_id}")
     if not room_id or not player_id:
         return web.json_response({"error": "Missing data"}, status=400)
     success = await join_room(room_id, player_id)
     room = await load_room(room_id)
+    logging.info(f"join_room result: success={success}, room_players={room.get('players') if room else None}")
     if room:
         await sio.emit("room_update", room, room=room_id)
     if success:
@@ -268,6 +313,7 @@ async def create_room_http(request):
     room_id = await create_room()
     await join_room(room_id, player_id)
     invite_url = f"{WEB_APP_URL}?room={room_id}&api={API_URL}"
+    logging.info(f"POST /api/create-room -> room_id={room_id} player_id={player_id}")
     return web.json_response({
         "success": True,
         "room_id": room_id,
