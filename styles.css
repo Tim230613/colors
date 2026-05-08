@@ -21,8 +21,63 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  background: #121417;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  background: #0c0f12;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+.blobs {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.32;
+  animation: float 18s infinite ease-in-out;
+}
+
+.blob-1 {
+  width: 420px;
+  height: 420px;
+  background: #e63946;
+  top: -120px;
+  left: -100px;
+  animation-delay: 0s;
+}
+
+.blob-2 {
+  width: 380px;
+  height: 380px;
+  background: #4361ee;
+  bottom: -100px;
+  right: -80px;
+  animation-delay: -6s;
+}
+
+.blob-3 {
+  width: 320px;
+  height: 320px;
+  background: #06d6a0;
+  top: 45%;
+  left: 55%;
+  animation-delay: -12s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -60px) scale(1.12); }
+  66% { transform: translate(-30px, 30px) scale(0.92); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 button,
@@ -38,42 +93,48 @@ input {
 }
 
 .game {
+  position: relative;
+  z-index: 1;
   width: min(100%, 470px);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 16px;
-  background: rgba(251, 247, 239, 0.72);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  background: rgba(251, 247, 239, 0.62);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
   box-shadow:
     0 24px 60px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .mode-selection {
+  position: relative;
+  z-index: 1;
   width: min(100%, 470px);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 16px;
-  background: rgba(251, 247, 239, 0.72);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  background: rgba(251, 247, 239, 0.62);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
   box-shadow:
     0 24px 60px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .invite-screen {
+  position: relative;
+  z-index: 1;
   width: min(100%, 470px);
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 16px;
-  background: rgba(251, 247, 239, 0.72);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  background: rgba(251, 247, 239, 0.62);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
   box-shadow:
     0 24px 60px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .invite-content {
@@ -121,41 +182,95 @@ input {
 }
 
 .mode-button {
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: auto auto;
   gap: 12px 16px;
   padding: 20px;
   border: 2px solid transparent;
-  border-radius: 12px;
+  border-radius: 16px;
   color: var(--ink);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.48)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.52)),
     var(--panel-deep);
   box-shadow:
     0 8px 24px rgba(23, 29, 33, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
   cursor: pointer;
   font-weight: 600;
   text-align: left;
-  transition: all 180ms ease;
+  transition: all 220ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  animation: slideInUp 0.55s ease-out backwards;
+}
+
+.mode-button:nth-child(1) { animation-delay: 0.1s; }
+.mode-button:nth-child(2) { animation-delay: 0.22s; }
+
+.mode-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#soloModeButton::before {
+  background: linear-gradient(135deg, rgba(14, 138, 120, 0.1), rgba(6, 214, 160, 0.04));
+}
+
+#multiplayerModeButton::before {
+  background: linear-gradient(135deg, rgba(212, 162, 52, 0.12), rgba(230, 57, 70, 0.04));
+}
+
+.mode-button:hover::before {
+  opacity: 1;
 }
 
 .mode-button:hover {
   border-color: var(--accent);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.58)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.62)),
     var(--panel);
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.01);
   box-shadow:
-    0 12px 32px rgba(23, 29, 33, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 16px 40px rgba(23, 29, 33, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.mode-button:active {
+  transform: translateY(-1px) scale(0.995);
 }
 
 .mode-icon {
   grid-row: 1 / -1;
-  font-size: 32px;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  font-size: 26px;
   line-height: 1;
+  background: linear-gradient(135deg, rgba(14, 138, 120, 0.18), rgba(6, 214, 160, 0.08));
+  border: 1px solid rgba(14, 138, 120, 0.25);
+  box-shadow: 0 4px 12px rgba(14, 138, 120, 0.12);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+#multiplayerModeButton .mode-icon {
+  background: linear-gradient(135deg, rgba(212, 162, 52, 0.18), rgba(230, 57, 70, 0.08));
+  border-color: rgba(212, 162, 52, 0.25);
+  box-shadow: 0 4px 12px rgba(212, 162, 52, 0.12);
+}
+
+.mode-button:hover .mode-icon {
+  transform: scale(1.08) rotate(-4deg);
+  box-shadow: 0 6px 18px rgba(14, 138, 120, 0.22);
+}
+
+#multiplayerModeButton:hover .mode-icon {
+  box-shadow: 0 6px 18px rgba(212, 162, 52, 0.22);
 }
 
 .mode-title {
@@ -179,14 +294,23 @@ input {
   margin-bottom: 16px;
 }
 
+.mode-selection .topbar {
+  animation: slideInUp 0.5s ease-out;
+}
+
 .eyebrow,
 .small-label {
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.mode-selection .eyebrow {
+  color: var(--accent);
+  opacity: 0.85;
 }
 
 h1,
@@ -196,8 +320,10 @@ h2 {
 }
 
 h1 {
-  font-size: 28px;
-  line-height: 1.05;
+  font-size: 30px;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-weight: 800;
 }
 
 h2 {
@@ -415,20 +541,28 @@ button {
   min-height: 46px;
   padding: 0 20px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   color: white;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent),
     var(--accent);
-  box-shadow: 0 12px 24px rgba(14, 138, 120, 0.26);
+  box-shadow: 0 12px 28px rgba(14, 138, 120, 0.32);
   cursor: pointer;
   font-weight: 800;
+  transition: all 180ms ease;
 }
 
 button:hover {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent),
     var(--accent-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px rgba(14, 138, 120, 0.38);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 18px rgba(14, 138, 120, 0.28);
 }
 
 button:disabled {
