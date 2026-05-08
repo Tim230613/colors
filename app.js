@@ -423,6 +423,12 @@ const urlParams = new URLSearchParams(window.location.search);
 roomId = urlParams.get('room');
 apiUrl = urlParams.get('api') || 'https://colors-production-4484.up.railway.app';
 
+// Гарантируем протокол у API URL
+if (apiUrl && !apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+    apiUrl = 'https://' + apiUrl;
+}
+console.log('API URL после нормализации:', apiUrl);
+
 // В Telegram WebApp параметры могут быть в initDataUnsafe.start_param
 // (например, при открытии через t.me/bot?startapp=ROOM_ID или из URL)
 if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {

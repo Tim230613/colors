@@ -43,7 +43,13 @@ load_env_file()
 
 TOKEN = os.environ.get("BOT_TOKEN")
 WEB_APP_URL = os.environ.get("WEB_APP_URL")
-API_URL = os.environ.get("API_URL", "https://colors-production-4484.up.railway.app")
+
+# API URL: явно указанный, Railway domain, или fallback
+_api_url = os.environ.get("API_URL") or os.environ.get("RAILWAY_PUBLIC_DOMAIN") or "https://colors-production-4484.up.railway.app"
+if _api_url and not _api_url.startswith(("http://", "https://")):
+    _api_url = f"https://{_api_url}"
+API_URL = _api_url
+
 # Автоматическая версия на основе времени запуска
 WEB_APP_VERSION = os.environ.get("WEB_APP_VERSION", str(int(time.time())))
 

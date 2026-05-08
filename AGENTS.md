@@ -32,6 +32,7 @@ python -m http.server 8000 --bind 127.0.0.1
 4. Запустить: `python bot.py`
 
 ## История изменений
+- 2026-05-08 10:15: ИСПРАВЛЕН API URL БЕЗ ПРОТОКОЛА - добавлена автоматическая подстановка https:// к API_URL в bot.py (fallback на RAILWAY_PUBLIC_DOMAIN) и в app.js. Убран жестко заданный API_URL из railway.yaml/render.yaml, чтобы Railway сам назначал домен. Версии обновлены до v=15.
 - 2026-05-08 10:10: ОБЪЕДИНЕНЫ БОТ И API В ОДИН СЕРВИС - удален дублирующий api_server.py. Теперь bot.py запускает и Telegram бота, и Flask API в одном процессе. Обновлены railway.yaml, render.yaml и Procfile: один web-сервис colors вместо двух (colors-api + colors-bot). Это решает проблему с отсутствием worker на Railway free tier.
 - 2026-05-08 10:00: ИСПРАВЛЕН МУЛЬТИПЛЕЕР В TELEGRAM - убран лишний tg.close() после tg.sendData(), который мог прерывать отправку данных в бот. Добавлен try-catch вокруг sendData в app.js. В bot.py добавлен fallback-ответ на любые данные от WebApp и исправлено условие на проверку score. Версии обновлены до v=13.
 - 2026-05-08 09:40: МУЛЬТИПЛЕЕР ВКЛЮЧЕН В TELEGRAM - полностью переработан flow мультиплеера для Telegram Mini App. Кнопка "Играть с другом" снова видна в Telegram. Создание комнаты происходит через tg.sendData -> бот создает комнату и присылает ссылку-приглашение (веб + Telegram t.me/bot?start=ROOM_ID). При /start ROOM_ID бот отправляет кнопку WebApp с предзаполненным room_id. Исправлен парсинг start_param (теперь поддерживает и строку, и JSON). Версия обновлена до v=12.
