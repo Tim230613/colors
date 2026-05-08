@@ -325,14 +325,10 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logging.info(f"Action: {action}")
     if action == "create_multiplayer_room":
         logging.info("Creating multiplayer room...")
-        # Генерируем player ID
-        player_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=9))
-        logging.info(f"Player ID: {player_id}")
 
-        # Создаем комнату
+        # Создаем пустую комнату (игроки присоединяются через WebApp)
         room_id = create_room()
         logging.info(f"Room ID: {room_id}")
-        join_room(room_id, player_id)
 
         # Получаем username бота для Telegram-ссылки
         try:
