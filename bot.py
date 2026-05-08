@@ -120,7 +120,7 @@ async def create_room():
         "target_color": None,
         "results": {},
         "round": 1,
-        "max_rounds": 3,
+        "max_rounds": 5,
         "scores": {},
         "match_ended": False,
         "ready_next": [],

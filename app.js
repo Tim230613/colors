@@ -42,7 +42,7 @@ let lastResult = null;
 
 // Мультираунды
 let currentRound = 1;
-const maxRounds = 3;
+const maxRounds = 5;
 let matchScores = []; // { round, score }
 
 // Многопользовательский режим через бота
