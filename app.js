@@ -25,7 +25,7 @@ const stageLabel = document.getElementById("stageLabel");
 const timer = document.getElementById("timer");
 const controls = document.getElementById("controls");
 const gameTitle = document.getElementById("gameTitle");
-const roundInfo = document.getElementById("roundInfo");
+
 const hueSlider = document.getElementById("hueSlider");
 const lightnessSlider = document.getElementById("lightnessSlider");
 const guessPreview = document.getElementById("guessPreview");
@@ -40,10 +40,7 @@ let targetLightness = 54;
 let countdownId = null;
 let lastResult = null;
 
-// Мультираунды
-let currentRound = 1;
-const maxRounds = 5;
-let matchScores = []; // { round, score }
+
 
 // Многопользовательский режим через бота
 let isMultiplayer = false;
@@ -123,15 +120,8 @@ function showGame() {
     gameSection.hidden = false;
 }
 
-function resetMatch() {
-    currentRound = 1;
-    matchScores = [];
-    if (roundInfo) roundInfo.textContent = `Раунд ${currentRound}/${maxRounds}`;
-}
-
 function startSoloGame() {
     isMultiplayer = false;
-    resetMatch();
     showGame();
     startRound();
 }
@@ -157,7 +147,6 @@ async function startMultiplayerGameFromUI() {
     // Для веб версии создаем комнату напрямую
     apiUrl = 'https://colors-production-4484.up.railway.app';
     playerId = Math.random().toString(36).substr(2, 9);
-    resetMatch();
     console.log('Создание комнаты (веб версия), player ID:', playerId);
 
     try {
@@ -215,7 +204,7 @@ function submitResultToAPI(result) {
     fetch(`${apiUrl}/api/result`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room_id: roomId, player_id: playerId, result: result, round: currentRound })
+        body: JSON.stringify({ room_id: roomId, player_id: playerId, result: result })
     }).catch(error => {
         console.error('Ошибка отправки результата:', error);
     });
@@ -272,7 +261,6 @@ function startRound() {
   resetSliders();
 
   if (gameTitle) gameTitle.textContent = "Запомни цвет";
-  if (roundInfo) roundInfo.textContent = `Раунд ${currentRound}/${maxRounds}`;
   timer.textContent = "3";
   controls.hidden = true;
   result.hidden = true;
@@ -328,20 +316,11 @@ function submitGuess() {
     lightnessDiff,
   };
 
-  matchScores.push({ round: currentRound, score });
-
   // В многопользовательском режиме отправляем результат через API
   if (isMultiplayer) {
     submitResultToAPI(lastResult);
     setTimeout(checkOpponentResult, 1000);
     return; // multiplayer handles its own flow
-  }
-
-  // Если последний раунд — показываем итоговый результат
-  if (currentRound >= maxRounds) {
-    const avgScore = Math.round(matchScores.reduce((a, b) => a + b.score, 0) / matchScores.length);
-    let bestRound = matchScores.reduce((a, b) => a.score > b.score ? a : b);
-    resultText.textContent += `\n🏁 Матч окончен! Средний результат: ${avgScore}% (лучший: ${bestRound.score}% в раунде ${bestRound.round})`;
   }
 }
 
@@ -353,22 +332,12 @@ function renderOpponentResult(room) {
     const myResult = results[playerId];
     if (!myResult || !opponentResult) return false;
 
-    const roomRound = room.round || 1;
-    const roomMax = room.max_rounds || 3;
-    let roundLabel = roomRound >= roomMax ? '🏁 Финальный раунд!' : `Раунд ${roomRound}/${roomMax}`;
     if (myResult.score > opponentResult.score) {
-        resultText.textContent = `🎉 ${roundLabel}\nТы победил! ${myResult.score}% vs ${opponentResult.score}%`;
+        resultText.textContent = `🎉 Ты победил! ${myResult.score}% vs ${opponentResult.score}%`;
     } else if (myResult.score < opponentResult.score) {
-        resultText.textContent = `😔 ${roundLabel}\nСоперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
+        resultText.textContent = `😔 Соперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
     } else {
-        resultText.textContent = `🤝 ${roundLabel}\nНичья! ${myResult.score}%`;
-    }
-    if (room.match_ended) {
-        const myTotal = Object.values(room.scores[playerId] || {}).reduce((a,b)=>a+b,0);
-        const oppTotal = opponentId ? Object.values(room.scores[opponentId] || {}).reduce((a,b)=>a+b,0) : 0;
-        const myAvg = Math.round(myTotal / roomMax);
-        const oppAvg = Math.round(oppTotal / roomMax);
-        resultText.textContent += `\n🏁 Матч окончен! Средний: ${myAvg}% vs ${oppAvg}%`;
+        resultText.textContent = `🤝 Ничья! ${myResult.score}%`;
     }
     return true;
 }
@@ -398,7 +367,7 @@ function nextRoundHandler() {
     if (isMultiplayer) {
         resultText.textContent = "Ожидание соперника...";
         againButton.disabled = true;
-        // Отправляем готовность к следующему раунду
+        // Отправляем готовность к новой игре
         fetch(`${apiUrl}/api/ready-next`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -407,12 +376,7 @@ function nextRoundHandler() {
         setTimeout(checkNewRound, 1000);
         return;
     }
-    // Соло: переходим к следующему раунду или сбрасываем матч
-    if (currentRound >= maxRounds) {
-        resetMatch();
-    } else {
-        currentRound++;
-    }
+    // Соло: просто новая игра
     startRound();
 }
 
@@ -422,17 +386,11 @@ function checkNewRound() {
     getRoomStatus().then(room => {
         if (!room) return;
 
-        if (room.match_ended) {
-            againButton.disabled = false;
-            return;
-        }
-
         if (room.target_color) {
             const newColor = room.target_color;
             if (newColor.hue !== targetHue || newColor.lightness !== targetLightness) {
                 targetHue = newColor.hue;
                 targetLightness = newColor.lightness;
-                currentRound = room.round || currentRound + 1;
                 againButton.disabled = false;
                 startRound();
             } else {
@@ -499,7 +457,6 @@ try {
     // Если есть параметры комнаты - многопользовательский режим
     playerId = Math.random().toString(36).substr(2, 9);
     isMultiplayer = true;
-    resetMatch();
     console.log('Загрузка с параметрами комнаты. Room ID:', roomId, 'Player ID:', playerId, 'API URL:', apiUrl);
 
     joinRoomApi(roomId, playerId).then(data => {
@@ -513,8 +470,7 @@ try {
             if (room && room.status === 'ready' && room.target_color) {
                 targetHue = room.target_color.hue;
                 targetLightness = room.target_color.lightness;
-                currentRound = room.round || 1;
-                console.log('Цель получена с сервера:', targetHue, targetLightness, 'round:', currentRound);
+                console.log('Цель получена с сервера:', targetHue, targetLightness);
                 showGame();
                 startRound();
             } else {

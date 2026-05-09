@@ -160,8 +160,8 @@ def create_room_api():
 
 
 @app.route('/api/ready-next', methods=['POST'])
-def ready_next_round_api():
-    """Игрок готов к следующему раунду"""
+def ready_next_api():
+    """Игрок готов к новой игре в той же комнате"""
     data = request.json
     room_id = data.get('room_id')
     player_id = data.get('player_id')
@@ -173,8 +173,6 @@ def ready_next_round_api():
         return jsonify({'error': 'Room not found'}), 404
 
     room = rooms[room_id]
-    if room.get('match_ended'):
-        return jsonify({'error': 'Match ended'}), 400
 
     if 'ready_next' not in room:
         room['ready_next'] = []
@@ -182,21 +180,17 @@ def ready_next_round_api():
     if player_id not in room['ready_next']:
         room['ready_next'].append(player_id)
 
-    # Если оба игрока готовы - переходим к следующему раунду
+    # Если оба игрока готовы - начинаем новую игру с новым цветом
     if len(room['ready_next']) == 2:
-        room['round'] += 1
-        if room['round'] > room['max_rounds']:
-            room['match_ended'] = True
-        else:
-            room['target_color'] = {
-                'hue': random.randint(0, 360),
-                'lightness': random.randint(0, 80)
-            }
+        room['target_color'] = {
+            'hue': random.randint(0, 360),
+            'lightness': random.randint(0, 80)
+        }
         room['ready_next'] = []
-        room['results'] = {}  # Очищаем результаты для нового раунда
+        room['results'] = {}  # Очищаем результаты для новой игры
 
     save_rooms()
-    return jsonify({'success': True, 'round': room['round'], 'match_ended': room.get('match_ended', False)})
+    return jsonify({'success': True})
 
 
 def run_flask():
@@ -219,10 +213,6 @@ def create_room():
         'status': 'waiting',
         'target_color': None,
         'results': {},
-        'round': 1,
-        'max_rounds': 5,
-        'scores': {},
-        'match_ended': False,
         'ready_next': []
     }
     save_rooms()
@@ -262,9 +252,6 @@ def submit_result(room_id, player_id, result):
     if room_id in rooms:
         room = rooms[room_id]
         room['results'][player_id] = result
-        if player_id not in room['scores']:
-            room['scores'][player_id] = {}
-        room['scores'][player_id][str(room['round'])] = result.get('score', 0)
         save_rooms()
 
 
