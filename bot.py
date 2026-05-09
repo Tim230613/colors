@@ -107,13 +107,12 @@ def join_room_api():
     data = request.json
     room_id = data.get('room_id')
     player_id = data.get('player_id')
-    player_name = data.get('player_name', 'Игрок')
-    logging.info(f"POST /api/join room_id={room_id} player_id={player_id} name={player_name}, known rooms: {list(rooms.keys())}")
+    logging.info(f"POST /api/join room_id={room_id} player_id={player_id}, known rooms: {list(rooms.keys())}")
 
     if not room_id or not player_id:
         return jsonify({'error': 'Missing room_id or player_id'}), 400
 
-    success = join_room(room_id, player_id, player_name)
+    success = join_room(room_id, player_id)
     if success:
         logging.info(f"Player {player_id} joined room {room_id}")
         return jsonify({'success': True})
@@ -141,13 +140,13 @@ def create_room_api():
     """Создать новую комнату"""
     data = request.json
     player_id = data.get('player_id')
-    player_name = data.get('player_name', 'Игрок')
-    logging.info(f"POST /api/create-room player_id={player_id} name={player_name}")
+    logging.info(f"POST /api/create-room player_id={player_id}")
 
     if not player_id:
         return jsonify({'error': 'Missing player_id'}), 400
 
-    room_id = create_room(player_id, player_name)
+    room_id = create_room()
+    join_room(room_id, player_id)
     logging.info(f"Room {room_id} created, total rooms: {len(rooms)}")
 
     # Формируем URL для приглашения
@@ -206,25 +205,21 @@ def generate_room_id():
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
 
-def create_room(player_id=None, player_name=None):
+def create_room():
     """Создает новую комнату"""
     room_id = generate_room_id()
     rooms[room_id] = {
         'players': [],
-        'player_names': {},
         'status': 'waiting',
         'target_color': None,
         'results': {},
         'ready_next': []
     }
-    if player_id and player_name:
-        rooms[room_id]['players'].append(player_id)
-        rooms[room_id]['player_names'][player_id] = player_name
     save_rooms()
     return room_id
 
 
-def join_room(room_id, player_id, player_name=None):
+def join_room(room_id, player_id):
     """Присоединяет игрока к комнате"""
     if room_id not in rooms:
         return False
@@ -232,8 +227,6 @@ def join_room(room_id, player_id, player_name=None):
     room = rooms[room_id]
     if player_id not in room['players'] and len(room['players']) < 2:
         room['players'].append(player_id)
-        if player_name:
-            room['player_names'][player_id] = player_name
 
         # Если два игрока - начинаем игру
         if len(room['players']) == 2:
