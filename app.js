@@ -47,7 +47,26 @@ let isMultiplayer = false;
 let roomId = null;
 let apiUrl = null;
 let playerId = null;
+let playerName = null;
 let pollingId = null;
+
+// Получаем имя игрока
+function getPlayerName() {
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        const user = tg.initDataUnsafe.user;
+        return user.first_name || user.username || 'Игрок';
+    }
+    // В веб-версии пробуем взять из localStorage или спрашиваем
+    let name = localStorage.getItem('playerName');
+    if (!name) {
+        name = prompt('Введи своё имя:', 'Игрок');
+        if (name) localStorage.setItem('playerName', name);
+    }
+    return name || 'Игрок';
+}
+
+playerName = getPlayerName();
+console.log('Player name:', playerName);
 
 function colorFromHsl(hue, lightness) {
   return `hsl(${hue}, 82%, ${lightness}%)`;
@@ -147,13 +166,13 @@ async function startMultiplayerGameFromUI() {
     // Для веб версии создаем комнату напрямую
     apiUrl = 'https://colors-production-4484.up.railway.app';
     playerId = Math.random().toString(36).substr(2, 9);
-    console.log('Создание комнаты (веб версия), player ID:', playerId);
+    console.log('Создание комнаты (веб версия), player ID:', playerId, 'name:', playerName);
 
     try {
         const response = await fetch(`${apiUrl}/api/create-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player_id: playerId })
+            body: JSON.stringify({ player_id: playerId, player_name: playerName })
         });
 
         const data = await response.json();
@@ -177,7 +196,7 @@ function joinRoomApi(roomId, playerId) {
     return fetch(`${apiUrl}/api/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room_id: roomId, player_id: playerId })
+        body: JSON.stringify({ room_id: roomId, player_id: playerId, player_name: playerName })
     }).then(response => {
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -324,6 +343,13 @@ function submitGuess() {
   }
 }
 
+function getOpponentName(room) {
+    const names = room.player_names || {};
+    const opponentId = Object.keys(room.results || {}).find(id => id !== playerId);
+    if (opponentId && names[opponentId]) return names[opponentId];
+    return 'Соперник';
+}
+
 function renderOpponentResult(room) {
     const results = room.results || {};
     const opponentId = Object.keys(results).find(id => id !== playerId);
@@ -332,10 +358,11 @@ function renderOpponentResult(room) {
     const myResult = results[playerId];
     if (!myResult || !opponentResult) return false;
 
+    const oppName = getOpponentName(room);
     if (myResult.score > opponentResult.score) {
         resultText.textContent = `🎉 Ты победил! ${myResult.score}% vs ${opponentResult.score}%`;
     } else if (myResult.score < opponentResult.score) {
-        resultText.textContent = `😔 Соперник победил! ${opponentResult.score}% vs ${myResult.score}%`;
+        resultText.textContent = `😔 ${oppName} победил! ${opponentResult.score}% vs ${myResult.score}%`;
     } else {
         resultText.textContent = `🤝 Ничья! ${myResult.score}%`;
     }
