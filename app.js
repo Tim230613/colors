@@ -56,13 +56,7 @@ function getPlayerName() {
         const user = tg.initDataUnsafe.user;
         return user.first_name || user.username || 'Игрок';
     }
-    // В веб-версии пробуем взять из localStorage или спрашиваем
-    let name = localStorage.getItem('playerName');
-    if (!name) {
-        name = prompt('Введи своё имя:', 'Игрок');
-        if (name) localStorage.setItem('playerName', name);
-    }
-    return name || 'Игрок';
+    return 'Игрок';
 }
 
 playerName = getPlayerName();
