@@ -340,7 +340,7 @@ function submitGuess() {
 function getOpponentName(room) {
     const names = room.player_names || {};
     const opponentId = Object.keys(room.results || {}).find(id => id !== playerId);
-    if (opponentId && names[opponentId]) return names[opponentId];
+    if (opponentId && names[opponentId] && names[opponentId] !== 'Игрок') return names[opponentId];
     return 'Соперник';
 }
 
